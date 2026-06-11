@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { login } from '../api/authAPI';
 import { useAuth } from '../context/AuthContext';
-import { Ship, Mail, Lock, Eye, EyeOff } from 'lucide-react';
+import { Mail, Lock, Eye, EyeOff, XCircle } from 'lucide-react';
 
 const Login = () => {
     const [email, setEmail] = useState('');
@@ -38,11 +38,7 @@ const Login = () => {
             {/* Left Side */}
             <div className="hidden lg:flex flex-1 bg-gradient-to-br from-blue-900 to-blue-700 flex-col justify-between p-12">
                 <div className="flex items-center gap-3">
-                    <div className="bg-white/20 p-2.5 rounded-xl">
-                        <Ship size={28} className="text-white" />
-                    </div>
-                    <span className="text-white font-bold text-xl">Port Tracking</span>
-                </div>
+                    <img src="/logo_portnet_sa.png" alt="Portnet" className="h-26 brightness-0 invert" />                </div>
 
                 <div>
                     <h1 className="text-4xl font-bold text-white leading-tight mb-4">
@@ -74,10 +70,7 @@ const Login = () => {
             <div className="flex-1 flex items-center justify-center p-8 bg-white">
                 <div className="w-full max-w-md">
                     <div className="flex items-center gap-3 mb-8 lg:hidden">
-                        <div className="bg-blue-600 p-2 rounded-lg">
-                            <Ship size={22} className="text-white" />
-                        </div>
-                        <span className="font-bold text-xl text-gray-800">Port Tracking</span>
+                        <img src="/logo_portnet_sa.png" alt="Portnet" className="h-18" />
                     </div>
 
                     <h2 className="text-3xl font-bold text-gray-800 mb-2">Connexion</h2>
@@ -150,8 +143,5 @@ const Login = () => {
         </div>
     );
 };
-
-// Fix missing import
-import { XCircle } from 'lucide-react';
 
 export default Login;

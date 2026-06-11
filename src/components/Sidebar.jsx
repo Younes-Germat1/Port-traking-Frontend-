@@ -2,7 +2,7 @@ import { NavLink } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import {
     LayoutDashboard, FileText, Package, Search,
-    FileArchive, Bell, Users, BarChart3, LogOut, Ship
+    FileArchive, Bell, Users, BarChart3, LogOut
 } from 'lucide-react';
 
 const Sidebar = () => {
@@ -33,15 +33,8 @@ const Sidebar = () => {
         <div className="w-64 bg-gray-900 min-h-screen flex flex-col fixed left-0 top-0 z-10">
             {/* Logo */}
             <div className="p-6 border-b border-gray-700">
-                <div className="flex items-center gap-3">
-                    <div className="bg-blue-600 p-2 rounded-lg">
-                        <Ship size={22} className="text-white" />
-                    </div>
-                    <div>
-                        <h2 className="text-white font-bold text-base">Port Tracking</h2>
-                        <p className="text-gray-400 text-xs">Système Portuaire</p>
-                    </div>
-                </div>
+                <img src="/logo_portnet_sa.png" alt="Portnet" className="h-26 brightness-0 invert" />
+
             </div>
 
             {/* User Info */}
