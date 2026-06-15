@@ -6,9 +6,11 @@ import { getAllFiches } from '../../api/ficheAPI';
 import { getConteneursByFiche } from '../../api/conteneurAPI';
 import { useAuth } from '../../context/AuthContext';
 import { Search, Plus, CheckCircle, XCircle, Clock } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 
 const InspectionList = () => {
     const { user } = useAuth();
+    const navigate = useNavigate();
     const [inspections, setInspections] = useState([]);
     const [loading, setLoading] = useState(true);
     const [fiches, setFiches] = useState([]);
@@ -24,7 +26,6 @@ const InspectionList = () => {
         fetchInspections();
         if (user?.role === 'ADII' || user?.role === 'ADMIN') {
             getAllFiches().then(res => setFiches(res.data));
-            // Fetch all users to get inspecteurs
             import('../../api/userAPI').then(({ getAllUsers }) => {
                 getAllUsers().then(res => {
                     const insp = res.data.filter(u => u.role === 'INSPECTEUR');
@@ -85,7 +86,6 @@ const InspectionList = () => {
                 <Navbar title="Inspections" />
                 <div className="p-6">
 
-                    {/* Create Form - ADII/ADMIN */}
                     {(user?.role === 'ADII' || user?.role === 'ADMIN') && (
                         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 mb-6">
                             <div className="flex justify-between items-center">
@@ -169,7 +169,6 @@ const InspectionList = () => {
                         </div>
                     )}
 
-                    {/* Table */}
                     <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
                         <table className="w-full text-sm">
                             <thead className="bg-gray-50 border-b border-gray-100">
@@ -190,7 +189,11 @@ const InspectionList = () => {
                                     </td>
                                 </tr>
                             ) : inspections.map(i => (
-                                <tr key={i.id} className="hover:bg-gray-50 transition">
+                                <tr
+                                    key={i.id}
+                                    className="hover:bg-gray-50 cursor-pointer transition"
+                                    onClick={() => navigate(`/inspections/${i.id}`)}
+                                >
                                     <td className="px-6 py-4 font-semibold text-gray-700">#{i.id}</td>
                                     <td className="px-6 py-4 text-gray-600">#{i.conteneurId}</td>
                                     <td className="px-6 py-4 text-gray-600">{i.organisme || '-'}</td>
@@ -200,20 +203,16 @@ const InspectionList = () => {
                                     <td className="px-6 py-4">
                                         {i.resultat ? (
                                             <span className={`flex items-center gap-1.5 w-fit px-2.5 py-1 rounded-full text-xs font-semibold ${resultatConfig[i.resultat]?.color}`}>
-                          {i.resultat === 'CONFORME'
-                              ? <CheckCircle size={12} />
-                              : <XCircle size={12} />
-                          }
+                                                {i.resultat === 'CONFORME' ? <CheckCircle size={12} /> : <XCircle size={12} />}
                                                 {i.resultat}
-                        </span>
+                                            </span>
                                         ) : (
                                             <span className="flex items-center gap-1.5 w-fit px-2.5 py-1 rounded-full text-xs font-semibold bg-yellow-100 text-yellow-700">
-                          <Clock size={12} />
-                          EN ATTENTE
-                        </span>
+                                                <Clock size={12} /> EN ATTENTE
+                                            </span>
                                         )}
                                     </td>
-                                    <td className="px-6 py-4">
+                                    <td className="px-6 py-4" onClick={(e) => e.stopPropagation()}>
                                         {!i.resultat && (user?.role === 'INSPECTEUR' || user?.role === 'ADII' || user?.role === 'ADMIN') && (
                                             <button
                                                 onClick={() => setCommentModal(i.id)}
@@ -237,7 +236,6 @@ const InspectionList = () => {
                     </div>
                 </div>
 
-                {/* Result Modal */}
                 {commentModal && (
                     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
                         <div className="bg-white rounded-2xl shadow-xl p-6 w-full max-w-md mx-4">

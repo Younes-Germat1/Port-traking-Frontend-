@@ -7,6 +7,7 @@ import CreateFiche from './pages/fiches/CreateFiche';
 import ConteneurList from './pages/conteneurs/ConteneurList';
 import ConteneurDetail from './pages/conteneurs/ConteneurDetail';
 import InspectionList from './pages/inspections/InspectionList';
+import InspectionDetail from './pages/inspections/InspectionDetail';
 import DocumentList from './pages/documents/DocumentList';
 import NotificationList from './pages/notifications/NotificationList';
 import UserManagement from './pages/admin/UserManagement';
@@ -39,6 +40,9 @@ function App() {
           } />
           <Route path="/inspections" element={
             <PrivateRoute><InspectionList /></PrivateRoute>
+          } />
+          <Route path="/inspections/:id" element={
+            <PrivateRoute><InspectionDetail /></PrivateRoute>
           } />
           <Route path="/documents" element={
             <PrivateRoute><DocumentList /></PrivateRoute>

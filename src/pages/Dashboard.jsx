@@ -212,7 +212,11 @@ const Dashboard = () => {
                                     </thead>
                                     <tbody className="divide-y divide-gray-50">
                                     {inspections.slice(0, 5).map(i => (
-                                        <tr key={i.id} className="hover:bg-gray-50 transition">
+                                        <tr
+                                            key={i.id}
+                                            className="hover:bg-gray-50 cursor-pointer transition"
+                                            onClick={() => navigate(`/inspections/${i.id}`)}
+                                        >
                                             <td className="px-5 py-3.5 font-medium text-gray-700">#{i.id}</td>
                                             <td className="px-5 py-3.5 text-gray-600">#{i.conteneurId}</td>
                                             <td className="px-5 py-3.5 text-gray-600">{i.organisme || '-'}</td>
