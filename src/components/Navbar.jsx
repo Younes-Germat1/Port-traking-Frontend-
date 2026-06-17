@@ -11,14 +11,13 @@ const Navbar = ({ title }) => {
 
     useEffect(() => {
         if (!user?.id) return;
-        // Fetch unread count on mount
-        const fetchUnread = () => {
-            getUnreadNotifications(user.id)
-                .then(res => setUnreadCount(res.data.length))
-                .catch(() => {});
+        const fetchUnread = async () => {
+            try {
+                const data = await getUnreadNotifications(user.id);
+                setUnreadCount(Array.isArray(data) ? data.length : 0);
+            } catch {}
         };
         fetchUnread();
-        // Poll every 30 seconds for new notifications
         const interval = setInterval(fetchUnread, 30000);
         return () => clearInterval(interval);
     }, [user?.id]);

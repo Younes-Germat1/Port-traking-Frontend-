@@ -17,21 +17,21 @@ const ConteneurList = () => {
     const [creating, setCreating] = useState(false);
 
     useEffect(() => {
-        getAllFiches().then(res => {
-            let data = res.data;
+        getAllFiches().then(data => {
+            let filtered = Array.isArray(data) ? data : [];
             if (user?.role === 'OPERATEUR') {
-                data = data.filter(f => f.statut === 'APPROUVEE' || f.statut === 'PLACEE');
+                filtered = filtered.filter(f => f.statut === 'APPROUVEE' || f.statut === 'PLACEE');
             }
-            setFiches(data);
-        });
-    }, []);
+            setFiches(filtered);
+        }).catch(() => setFiches([]));
+    }, [user]);
 
     const search = async (ficheId) => {
         if (!ficheId) return;
         setLoading(true);
         try {
-            const res = await getConteneursByFiche(ficheId);
-            setConteneurs(res.data);
+            const data = await getConteneursByFiche(ficheId);
+            setConteneurs(Array.isArray(data) ? data : []);
         } catch {
             setConteneurs([]);
         } finally {
@@ -51,11 +51,11 @@ const ConteneurList = () => {
     };
 
     const statutConfig = {
-        ARRIVE: { color: 'bg-blue-100 text-blue-700', label: 'Arrivé' },
-        STOCKE: { color: 'bg-green-100 text-green-700', label: 'Stocké' },
+        ARRIVE:        { color: 'bg-blue-100 text-blue-700',   label: 'Arrivé' },
+        STOCKE:        { color: 'bg-green-100 text-green-700', label: 'Stocké' },
         EN_INSPECTION: { color: 'bg-yellow-100 text-yellow-700', label: 'En Inspection' },
-        CHARGEMENT: { color: 'bg-purple-100 text-purple-700', label: 'Chargement' },
-        PARTI: { color: 'bg-gray-100 text-gray-700', label: 'Parti' },
+        CHARGEMENT:    { color: 'bg-purple-100 text-purple-700', label: 'Chargement' },
+        PARTI:         { color: 'bg-gray-100 text-gray-700',   label: 'Parti' },
     };
 
     return (
@@ -122,9 +122,9 @@ const ConteneurList = () => {
                                 <tr key={c.id} className="hover:bg-gray-50 transition">
                                     <td className="px-6 py-4 font-semibold text-gray-700">#{c.id}</td>
                                     <td className="px-6 py-4">
-                      <span className={`px-2.5 py-1 rounded-full text-xs font-semibold ${statutConfig[c.statut]?.color}`}>
-                        {statutConfig[c.statut]?.label || c.statut}
-                      </span>
+                                            <span className={`px-2.5 py-1 rounded-full text-xs font-semibold ${statutConfig[c.statut]?.color}`}>
+                                                {statutConfig[c.statut]?.label || c.statut}
+                                            </span>
                                     </td>
                                     <td className="px-6 py-4 text-gray-600">{c.zone || '-'}</td>
                                     <td className="px-6 py-4 text-gray-600">{c.position || '-'}</td>
@@ -132,7 +132,7 @@ const ConteneurList = () => {
                                     <td className="px-6 py-4">
                                         <div className="flex items-center gap-1 text-gray-600">
                                             <Clock size={14} className="text-gray-400" />
-                                            {c.dwellTimeHours}h
+                                            {c.dwellTimeHours != null ? `${c.dwellTimeHours}h` : '-'}
                                         </div>
                                     </td>
                                     <td className="px-6 py-4">

@@ -1,32 +1,32 @@
-import { NavLink } from 'react-router-dom';
+import { NavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import {
     LayoutDashboard, FileText, Package, Search,
-    FileArchive, Bell, Users, BarChart3, LogOut
+    FileArchive, Bell, Users, BarChart3, LogOut, Plus
 } from 'lucide-react';
 
 const Sidebar = () => {
     const { user, logoutUser } = useAuth();
+    const navigate = useNavigate();
 
     const links = [
-        { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard, roles: ['ADMIN','IMPORTATEUR','ADII','OPERATEUR','INSPECTEUR'] },
-        { to: '/fiches', label: 'Fiches Suiveuses', icon: FileText, roles: ['ADMIN','IMPORTATEUR','ADII','OPERATEUR'] },
-        { to: '/conteneurs', label: 'Conteneurs', icon: Package, roles: ['ADMIN','OPERATEUR','ADII'] },
-        { to: '/inspections', label: 'Inspections', icon: Search, roles: ['ADMIN','ADII','INSPECTEUR'] },
-        { to: '/documents', label: 'Documents', icon: FileArchive, roles: ['ADMIN','IMPORTATEUR'] },
-        { to: '/notifications', label: 'Notifications', icon: Bell, roles: ['ADMIN','IMPORTATEUR','ADII','OPERATEUR','INSPECTEUR'] },
-        { to: '/admin/users', label: 'Utilisateurs', icon: Users, roles: ['ADMIN'] },
-        { to: '/admin/reports', label: 'Rapports', icon: BarChart3, roles: ['ADMIN'] },
+        { to: '/dashboard',    label: 'Dashboard',       icon: LayoutDashboard, roles: ['ADMIN','IMPORTATEUR','ADII','OPERATEUR','INSPECTEUR'] },
+        { to: '/fiches',       label: 'Fiches Suiveuses', icon: FileText,        roles: ['ADMIN','IMPORTATEUR','ADII','OPERATEUR'] },
+        { to: '/conteneurs',   label: 'Conteneurs',       icon: Package,         roles: ['ADMIN','OPERATEUR','ADII'] },
+        { to: '/inspections',  label: 'Inspections',      icon: Search,          roles: ['ADMIN','ADII','INSPECTEUR'] },
+        { to: '/notifications',label: 'Notifications',    icon: Bell,            roles: ['ADMIN','IMPORTATEUR','ADII','OPERATEUR','INSPECTEUR'] },
+        { to: '/admin/users',  label: 'Utilisateurs',     icon: Users,           roles: ['ADMIN'] },
+        { to: '/admin/reports',label: 'Rapports',         icon: BarChart3,       roles: ['ADMIN'] },
     ];
 
     const visibleLinks = links.filter(l => l.roles.includes(user?.role));
 
     const roleColors = {
-        ADMIN: 'bg-red-500',
+        ADMIN:       'bg-red-500',
         IMPORTATEUR: 'bg-blue-500',
-        ADII: 'bg-green-500',
-        OPERATEUR: 'bg-yellow-500',
-        INSPECTEUR: 'bg-purple-500',
+        ADII:        'bg-green-500',
+        OPERATEUR:   'bg-yellow-500',
+        INSPECTEUR:  'bg-purple-500',
     };
 
     return (
@@ -34,7 +34,6 @@ const Sidebar = () => {
             {/* Logo */}
             <div className="p-6 border-b border-gray-700">
                 <img src="/logo_portnet_sa.png" alt="Portnet" className="h-26 brightness-0 invert" />
-
             </div>
 
             {/* User Info */}
@@ -46,11 +45,24 @@ const Sidebar = () => {
                     <div className="flex-1 min-w-0">
                         <p className="text-white text-sm font-medium truncate">{user?.nom || user?.email}</p>
                         <span className={`text-xs px-2 py-0.5 rounded-full text-white ${roleColors[user?.role]}`}>
-              {user?.role}
-            </span>
+                            {user?.role}
+                        </span>
                     </div>
                 </div>
             </div>
+
+            {/* Bouton Nouvelle Fiche — IMPORTATEUR seulement */}
+            {user?.role === 'IMPORTATEUR' && (
+                <div className="px-3 pt-4">
+                    <button
+                        onClick={() => navigate('/fiches/create')}
+                        className="w-full flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium px-3 py-2.5 rounded-lg transition"
+                    >
+                        <Plus size={16} />
+                        Nouvelle Fiche
+                    </button>
+                </div>
+            )}
 
             {/* Navigation */}
             <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">

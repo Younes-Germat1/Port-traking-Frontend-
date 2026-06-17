@@ -1,329 +1,507 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Sidebar from '../../components/Sidebar';
 import Navbar from '../../components/Navbar';
 import { createFiche } from '../../api/ficheAPI';
-import { createMarchandise } from '../../api/marchandiseAPI';
-import { uploadDocument } from '../../api/documentAPI';
-import { useAuth } from '../../context/AuthContext';
-import { Plus, Trash2, CheckCircle } from 'lucide-react';
+import { MapPin, CheckCircle, AlertCircle, Loader2, Package } from 'lucide-react';
 
+// ─────────────────────────────────────────
+const CLASSIFICATIONS = ['STANDARD', 'DANGEREUSE', 'PERISSABLE', 'FRAGILE'];
+
+const CLASSIFICATION_COLORS = {
+    STANDARD:   'bg-gray-100 text-gray-700',
+    DANGEREUSE: 'bg-red-100 text-red-700',
+    PERISSABLE: 'bg-yellow-100 text-yellow-700',
+    FRAGILE:    'bg-blue-100 text-blue-700',
+};
+
+const ORGANISMES_LIST = [
+    { id: 'ADII',    label: 'ADII — Douanes',                obligatoire: true  },
+    { id: 'ONSSA',   label: 'ONSSA — Sécurité alimentaire',  obligatoire: false },
+    { id: 'AMSSNUR', label: 'AMSSNUR — Sécurité nucléaire',  obligatoire: false },
+    { id: 'EACCE',   label: 'EACCE — Contrôle exportations', obligatoire: false },
+    { id: 'LPEE',    label: 'LPEE — Essais et études',        obligatoire: false },
+];
+
+const getOrganismesAuto = (marchandises) => {
+    const auto = new Set(['ADII']);
+    marchandises.forEach(m => {
+        if (m.classification === 'PERISSABLE') auto.add('ONSSA');
+        if (m.classification === 'DANGEREUSE') auto.add('AMSSNUR');
+    });
+    return [...auto];
+};
+
+// ─────────────────────────────────────────
+// STEP 1 — Importateur
+// ─────────────────────────────────────────
+const ImportateurStep = ({ data, setData, onNext }) => {
+    const isValid = data.nom.trim() && data.adresse.trim() && data.contact.trim();
+
+    return (
+        <div className="bg-white border border-gray-100 rounded-2xl p-6 shadow-sm space-y-4">
+            <h2 className="text-lg font-bold text-gray-800 mb-2">Informations Importateur</h2>
+
+            <div>
+                <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1 block">
+                    Nom complet / Raison sociale *
+                </label>
+                <input
+                    type="text"
+                    placeholder="Ex: Société Import Maroc SARL"
+                    value={data.nom}
+                    onChange={e => setData({ ...data, nom: e.target.value })}
+                    className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+            </div>
+
+            <div>
+                <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1 block">
+                    Adresse *
+                </label>
+                <textarea
+                    rows={3}
+                    placeholder="Ex: 12 Rue Hassan II, Casablanca, Maroc"
+                    value={data.adresse}
+                    onChange={e => setData({ ...data, adresse: e.target.value })}
+                    className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
+                />
+            </div>
+
+            <div>
+                <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1 block">
+                    Contact (téléphone / email) *
+                </label>
+                <input
+                    type="text"
+                    placeholder="Ex: +212 6 00 00 00 00 / contact@import.ma"
+                    value={data.contact}
+                    onChange={e => setData({ ...data, contact: e.target.value })}
+                    className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+            </div>
+
+            <button
+                onClick={onNext}
+                disabled={!isValid}
+                className="w-full bg-blue-600 text-white py-3 rounded-xl font-semibold hover:bg-blue-700 disabled:opacity-50 transition mt-2"
+            >
+                Suivant — Ajouter les marchandises
+            </button>
+        </div>
+    );
+};
+
+// ─────────────────────────────────────────
+// STEP 2 — Marchandises
+// ─────────────────────────────────────────
+const MarchandisesStep = ({ marchandises, setMarchandises, onNext, onBack }) => {
+
+    const addMarchandise = () => {
+        setMarchandises([...marchandises, {
+            id: Date.now(),
+            description: '',
+            classification: 'STANDARD',
+            codeSH: '',
+            poids: '',
+            volume: '',
+            documents: [],
+        }]);
+    };
+
+    const update = (id, field, value) =>
+        setMarchandises(marchandises.map(m => m.id === id ? { ...m, [field]: value } : m));
+
+    const remove = (id) =>
+        setMarchandises(marchandises.filter(m => m.id !== id));
+
+    const handleFileChange = (id, files) =>
+        setMarchandises(marchandises.map(m =>
+            m.id === id ? { ...m, documents: [...m.documents, ...Array.from(files)] } : m
+        ));
+
+    const removeDocument = (marchandiseId, docIndex) =>
+        setMarchandises(marchandises.map(m =>
+            m.id === marchandiseId
+                ? { ...m, documents: m.documents.filter((_, i) => i !== docIndex) }
+                : m
+        ));
+
+    const isValid = marchandises.every(m =>
+        m.description.trim() &&
+        m.classification &&
+        m.documents.length > 0
+    );
+
+    return (
+        <div className="space-y-4">
+            <div className="flex justify-between items-center">
+                <h2 className="text-lg font-bold text-gray-800">Marchandises</h2>
+                <button
+                    onClick={addMarchandise}
+                    className="flex items-center gap-1 border border-blue-600 text-blue-600 px-3 py-1.5 rounded-lg text-sm hover:bg-blue-50 transition"
+                >
+                    + Ajouter
+                </button>
+            </div>
+
+            {marchandises.map((m, index) => (
+                <div key={m.id} className="bg-white border border-gray-100 rounded-2xl p-5 shadow-sm">
+                    <div className="flex justify-between items-center mb-4">
+                        <div className="flex items-center gap-2 font-semibold text-gray-700">
+                            <Package size={16} className="text-blue-500" />
+                            Marchandise {index + 1}
+                        </div>
+                        {marchandises.length > 1 && (
+                            <button onClick={() => remove(m.id)} className="text-red-400 hover:text-red-600 text-sm">
+                                Supprimer
+                            </button>
+                        )}
+                    </div>
+
+                    {/* Description */}
+                    <div className="mb-3">
+                        <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1 block">
+                            Description *
+                        </label>
+                        <input
+                            type="text"
+                            placeholder="Ex: Fruits frais, électronique..."
+                            value={m.description}
+                            onChange={e => update(m.id, 'description', e.target.value)}
+                            className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        />
+                    </div>
+
+                    {/* Classification + Code SH */}
+                    <div className="grid grid-cols-2 gap-3 mb-3">
+                        <div>
+                            <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1 block">
+                                Classification *
+                            </label>
+                            <select
+                                value={m.classification}
+                                onChange={e => update(m.id, 'classification', e.target.value)}
+                                className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            >
+                                {CLASSIFICATIONS.map(c => (
+                                    <option key={c} value={c}>{c}</option>
+                                ))}
+                            </select>
+                        </div>
+                        <div>
+                            <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1 block">
+                                Code SH
+                            </label>
+                            <input
+                                type="text"
+                                placeholder="Ex: 0804.50"
+                                value={m.codeSH}
+                                onChange={e => update(m.id, 'codeSH', e.target.value)}
+                                className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            />
+                        </div>
+                    </div>
+
+                    {/* Poids + Volume */}
+                    <div className="grid grid-cols-2 gap-3 mb-3">
+                        <div>
+                            <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1 block">
+                                Poids (kg)
+                            </label>
+                            <input
+                                type="number"
+                                placeholder="Ex: 1500"
+                                value={m.poids}
+                                onChange={e => update(m.id, 'poids', e.target.value)}
+                                className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            />
+                        </div>
+                        <div>
+                            <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1 block">
+                                Volume (m³)
+                            </label>
+                            <input
+                                type="number"
+                                placeholder="Ex: 20"
+                                value={m.volume}
+                                onChange={e => update(m.id, 'volume', e.target.value)}
+                                className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            />
+                        </div>
+                    </div>
+
+                    {/* Documents — obligatoire */}
+                    <div className="mb-3">
+                        <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1 block">
+                            Documents joints (factures, certificats) *
+                        </label>
+                        <label className={`flex items-center gap-2 cursor-pointer border-2 border-dashed rounded-xl px-4 py-3 text-sm transition
+                            ${m.documents.length === 0
+                            ? 'border-red-300 text-red-400 hover:border-red-400'
+                            : 'border-green-300 text-green-600 hover:border-green-400'}`}>
+                            <span>📎</span>
+                            <span>{m.documents.length === 0 ? 'Cliquer pour ajouter PDF / images' : "Ajouter d'autres documents"}</span>
+                            <input
+                                type="file"
+                                multiple
+                                accept=".pdf,image/*"
+                                className="hidden"
+                                onChange={e => handleFileChange(m.id, e.target.files)}
+                            />
+                        </label>
+
+                        {m.documents.length > 0 && (
+                            <ul className="mt-2 space-y-1">
+                                {m.documents.map((doc, i) => (
+                                    <li key={i} className="text-xs text-gray-600 flex items-center justify-between bg-gray-50 px-3 py-1.5 rounded-lg">
+                                        <span className="flex items-center gap-1">📄 {doc.name}</span>
+                                        <button
+                                            onClick={() => removeDocument(m.id, i)}
+                                            className="text-red-400 hover:text-red-600 ml-2"
+                                        >✕</button>
+                                    </li>
+                                ))}
+                            </ul>
+                        )}
+
+                        {m.documents.length === 0 && (
+                            <p className="text-xs text-red-400 mt-1">⚠️ Au moins un document est requis</p>
+                        )}
+                    </div>
+
+                    {/* Classification badge */}
+                    <span className={`text-xs font-semibold px-3 py-1 rounded-full ${CLASSIFICATION_COLORS[m.classification]}`}>
+                        {m.classification}
+                    </span>
+                </div>
+            ))}
+
+            <div className="flex gap-3">
+                <button
+                    onClick={onBack}
+                    className="w-1/3 border border-gray-200 text-gray-600 py-3 rounded-xl font-semibold hover:bg-gray-50 transition"
+                >
+                    ← Retour
+                </button>
+                <button
+                    onClick={onNext}
+                    disabled={!isValid}
+                    className="flex-1 bg-blue-600 text-white py-3 rounded-xl font-semibold hover:bg-blue-700 disabled:opacity-50 transition"
+                >
+                    Suivant — Choisir les organismes
+                </button>
+            </div>
+        </div>
+    );
+};
+
+// ─────────────────────────────────────────
+// STEP 3 — Organismes
+// ─────────────────────────────────────────
+const OrganismesStep = ({ organismes, setOrganismes, marchandises, onBack, onSubmit, saving, error }) => {
+
+    // ✅ Re-runs every time marchandises changes (e.g. after going back)
+    useEffect(() => {
+        const auto = getOrganismesAuto(marchandises);
+        setOrganismes(prev => {
+            const manualChoices = prev.filter(o => !['ONSSA', 'AMSSNUR'].includes(o));
+            return [...new Set([...auto, ...manualChoices])];
+        });
+    }, [marchandises]);
+
+    const toggle = (id) => {
+        if (id === 'ADII') return;
+        setOrganismes(prev =>
+            prev.includes(id) ? prev.filter(o => o !== id) : [...prev, id]
+        );
+    };
+
+    const isAuto = (id) => getOrganismesAuto(marchandises).includes(id);
+
+    return (
+        <div className="bg-white border border-gray-100 rounded-2xl p-6 shadow-sm space-y-4">
+            <h2 className="text-lg font-bold text-gray-800 mb-1">Organismes de contrôle</h2>
+            <p className="text-sm text-gray-400 mb-4">
+                Certains organismes sont présélectionnés selon vos marchandises.
+            </p>
+
+            {error && (
+                <div className="bg-red-50 border border-red-200 text-red-600 px-4 py-3 rounded-xl text-sm flex items-center gap-2">
+                    <AlertCircle size={16} /> {error}
+                </div>
+            )}
+
+            <div className="space-y-3">
+                {ORGANISMES_LIST.map(org => {
+                    const checked = organismes.includes(org.id);
+                    const auto    = isAuto(org.id);
+
+                    return (
+                        <label
+                            key={org.id}
+                            onClick={() => toggle(org.id)}
+                            className={`flex items-center justify-between p-4 rounded-xl border transition
+                                ${org.id === 'ADII' ? 'cursor-not-allowed' : 'cursor-pointer'}
+                                ${checked
+                                ? 'border-blue-500 bg-blue-50'
+                                : 'border-gray-200 hover:border-gray-300'}
+                            `}
+                        >
+                            <div className="flex items-center gap-3">
+                                <input
+                                    type="checkbox"
+                                    checked={checked}
+                                    readOnly
+                                    className="w-4 h-4 accent-blue-600"
+                                />
+                                <span className="text-sm font-medium text-gray-700">
+                                    {org.label}
+                                </span>
+                            </div>
+                            {auto && (
+                                <span className={`text-xs font-semibold px-2 py-0.5 rounded-full
+                                    ${org.id === 'ADII'
+                                    ? 'bg-gray-200 text-gray-600'
+                                    : 'bg-blue-100 text-blue-600'}`}>
+                                    {org.id === 'ADII' ? 'Obligatoire' : 'Auto'}
+                                </span>
+                            )}
+                        </label>
+                    );
+                })}
+            </div>
+
+            <div className="flex gap-3 pt-2">
+                <button
+                    onClick={onBack}
+                    className="w-1/3 border border-gray-200 text-gray-600 py-3 rounded-xl font-semibold hover:bg-gray-50 transition"
+                >
+                    ← Retour
+                </button>
+                <button
+                    onClick={onSubmit}
+                    disabled={saving || organismes.length === 0}
+                    className="flex-1 bg-blue-600 text-white py-3 rounded-xl font-semibold hover:bg-blue-700 disabled:opacity-50 transition flex items-center justify-center gap-2"
+                >
+                    {saving
+                        ? <><Loader2 size={18} className="animate-spin" /> Envoi en cours...</>
+                        : <><CheckCircle size={18} /> Soumettre la fiche</>
+                    }
+                </button>
+            </div>
+        </div>
+    );
+};
+
+// ─────────────────────────────────────────
+// PARENT — CreateFiche
+// ─────────────────────────────────────────
 const CreateFiche = () => {
-    const { user } = useAuth();
     const navigate = useNavigate();
-    const [step, setStep] = useState(1);
-    const [loading, setLoading] = useState(false);
-    const [error, setError] = useState('');
-    const [ficheId, setFicheId] = useState(null);
 
+    const [step, setStep]     = useState(1);
+    const [saving, setSaving] = useState(false);
+    const [error, setError]   = useState(null);
+
+    const [importateur, setImportateur] = useState({ nom: '', adresse: '', contact: '' });
     const [marchandises, setMarchandises] = useState([{
-        classification: 'STANDARD', poids: '', volume: '', codeSh: ''
+        id: Date.now(),
+        description: '',
+        classification: 'STANDARD',
+        codeSH: '',
+        poids: '',
+        volume: '',
+        documents: [],
     }]);
+    const [organismes, setOrganismes] = useState([]);
 
-    const [documents, setDocuments] = useState([{ type: '', file: null }]);
-
-    const handleCreateFiche = async () => {
-        setLoading(true);
-        setError('');
+    const handleSubmit = async () => {
         try {
-            const res = await createFiche({ importateurId: user.id });
-            setFicheId(res.data.id);
-            setStep(2);
-        } catch {
-            setError('Échec de la création de la fiche');
-        } finally {
-            setLoading(false);
-        }
-    };
+            setSaving(true);
+            setError(null);
 
-    const handleSaveMarchandises = async () => {
-        setLoading(true);
-        setError('');
-        try {
-            for (const m of marchandises) {
-                await createMarchandise({
-                    ficheId,
-                    classification: m.classification,
-                    poids: parseFloat(m.poids) || 0,
-                    volume: parseFloat(m.volume) || 0,
-                    codeSh: m.codeSh
+            const formData = new FormData();
+            formData.append('importateurNom',     importateur.nom);
+            formData.append('importateurAdresse', importateur.adresse);
+            formData.append('importateurContact', importateur.contact);
+            formData.append('organismes',         JSON.stringify(organismes));
+
+            const marchandisesData = marchandises.map(({ documents, ...rest }) => rest);
+            formData.append('marchandises', JSON.stringify(marchandisesData));
+
+            marchandises.forEach(m => {
+                m.documents.forEach(file => {
+                    formData.append('documents', file);
                 });
-            }
-            setStep(3);
-        } catch {
-            setError('Échec de la sauvegarde des marchandises');
-        } finally {
-            setLoading(false);
-        }
-    };
+            });
 
-    const handleSaveDocuments = async () => {
-        setLoading(true);
-        setError('');
-        try {
-            for (const doc of documents) {
-                if (doc.file && doc.type) {
-                    await uploadDocument(ficheId, doc.type, doc.file);
-                }
-            }
+            await createFiche(formData);
             navigate('/fiches');
         } catch {
-            setError('Échec du téléchargement des documents');
+            setError('Erreur lors de la soumission. Veuillez réessayer.');
         } finally {
-            setLoading(false);
+            setSaving(false);
         }
     };
 
-    const steps = [
-        { num: 1, label: 'Fiche' },
-        { num: 2, label: 'Marchandises' },
-        { num: 3, label: 'Documents' },
-    ];
+    const STEPS = ['Importateur', 'Marchandises', 'Organismes'];
 
     return (
         <div className="flex bg-gray-50 min-h-screen">
             <Sidebar />
             <div className="flex-1 ml-64">
-                <Navbar title="Créer une Fiche Suiveuse" />
-                <div className="p-6 max-w-3xl">
+                <Navbar title="Nouvelle Fiche Suiveuse" />
+                <div className="max-w-2xl mx-auto p-6">
 
-                    {/* Steps */}
-                    <div className="flex items-center mb-8">
-                        {steps.map((s, i) => (
-                            <div key={s.num} className="flex items-center">
-                                <div className={`flex items-center gap-2 ${i > 0 ? 'ml-2' : ''}`}>
-                                    <div className={`w-9 h-9 rounded-full flex items-center justify-center font-bold text-sm transition-all ${
-                                        step > s.num ? 'bg-green-500 text-white' :
-                                            step === s.num ? 'bg-blue-600 text-white' :
-                                                'bg-gray-200 text-gray-500'
-                                    }`}>
-                                        {step > s.num ? <CheckCircle size={18} /> : s.num}
+                    {/* Stepper */}
+                    <div className="flex items-center gap-2 mb-6">
+                        {STEPS.map((label, i) => {
+                            const num    = i + 1;
+                            const done   = step > num;
+                            const active = step === num;
+                            return (
+                                <div key={label} className="flex items-center gap-2">
+                                    <div className={`flex items-center gap-2 px-4 py-1.5 rounded-full text-sm font-semibold transition
+                                        ${done   ? 'bg-green-100 text-green-700' :
+                                        active ? 'bg-blue-600 text-white' :
+                                            'bg-gray-100 text-gray-400'}`}>
+                                        {done ? '✓' : num} {label}
                                     </div>
-                                    <span className={`text-sm font-medium ${step === s.num ? 'text-blue-600' : 'text-gray-400'}`}>
-                    {s.label}
-                  </span>
+                                    {i < STEPS.length - 1 && <div className="w-6 h-px bg-gray-300" />}
                                 </div>
-                                {i < steps.length - 1 && (
-                                    <div className={`h-0.5 w-16 mx-3 ${step > s.num ? 'bg-green-500' : 'bg-gray-200'}`} />
-                                )}
-                            </div>
-                        ))}
+                            );
+                        })}
                     </div>
 
-                    {error && (
-                        <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl mb-4 text-sm">
-                            {error}
-                        </div>
-                    )}
-
-                    {/* Step 1 */}
+                    {/* Steps */}
                     {step === 1 && (
-                        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
-                            <h2 className="text-lg font-bold text-gray-800 mb-2">Créer la Fiche Suiveuse</h2>
-                            <p className="text-gray-500 text-sm mb-6">Une nouvelle fiche sera créée et soumise à l'ADII pour validation.</p>
-
-                            <div className="bg-blue-50 border border-blue-100 rounded-xl p-4 mb-6">
-                                <div className="grid grid-cols-2 gap-3 text-sm">
-                                    <div>
-                                        <p className="text-gray-500">Importateur</p>
-                                        <p className="font-semibold text-gray-800">{user?.nom || user?.email}</p>
-                                    </div>
-                                    <div>
-                                        <p className="text-gray-500">Statut Initial</p>
-                                        <span className="bg-yellow-100 text-yellow-700 text-xs px-2 py-1 rounded-full font-semibold">EN_ATTENTE</span>
-                                    </div>
-                                </div>
-                            </div>
-
-                            <button
-                                onClick={handleCreateFiche}
-                                disabled={loading}
-                                className="w-full bg-blue-600 text-white py-3 rounded-xl hover:bg-blue-700 transition disabled:opacity-50 font-semibold flex items-center justify-center gap-2"
-                            >
-                                {loading ? (
-                                    <><div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div> Création...</>
-                                ) : 'Créer la Fiche →'}
-                            </button>
-                        </div>
+                        <ImportateurStep
+                            data={importateur}
+                            setData={setImportateur}
+                            onNext={() => setStep(2)}
+                        />
                     )}
-
-                    {/* Step 2 */}
                     {step === 2 && (
-                        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
-                            <div className="flex justify-between items-center mb-2">
-                                <h2 className="text-lg font-bold text-gray-800">Ajouter les Marchandises</h2>
-                                <span className="bg-green-100 text-green-700 text-xs px-3 py-1 rounded-full font-semibold">Fiche #{ficheId} ✓</span>
-                            </div>
-                            <p className="text-gray-500 text-sm mb-6">Ajoutez toutes les marchandises de cette fiche.</p>
-
-                            {marchandises.map((m, index) => (
-                                <div key={index} className="border border-gray-100 rounded-xl p-4 mb-4 bg-gray-50">
-                                    <div className="flex justify-between items-center mb-3">
-                                        <h3 className="font-semibold text-gray-700 text-sm">Marchandise #{index + 1}</h3>
-                                        {marchandises.length > 1 && (
-                                            <button
-                                                onClick={() => setMarchandises(marchandises.filter((_, i) => i !== index))}
-                                                className="text-red-400 hover:text-red-600 transition"
-                                            >
-                                                <Trash2 size={16} />
-                                            </button>
-                                        )}
-                                    </div>
-                                    <div className="grid grid-cols-2 gap-3">
-                                        <div>
-                                            <label className="text-xs font-medium text-gray-500 mb-1 block">Classification</label>
-                                            <select
-                                                value={m.classification}
-                                                onChange={(e) => {
-                                                    const updated = [...marchandises];
-                                                    updated[index].classification = e.target.value;
-                                                    setMarchandises(updated);
-                                                }}
-                                                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
-                                            >
-                                                <option>STANDARD</option>
-                                                <option>DANGEREUSE</option>
-                                                <option>PERISSABLE</option>
-                                                <option>FRAGILE</option>
-                                            </select>
-                                        </div>
-                                        <div>
-                                            <label className="text-xs font-medium text-gray-500 mb-1 block">Code SH</label>
-                                            <input
-                                                type="text"
-                                                placeholder="ex: 0101.21"
-                                                value={m.codeSh}
-                                                onChange={(e) => {
-                                                    const updated = [...marchandises];
-                                                    updated[index].codeSh = e.target.value;
-                                                    setMarchandises(updated);
-                                                }}
-                                                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
-                                            />
-                                        </div>
-                                        <div>
-                                            <label className="text-xs font-medium text-gray-500 mb-1 block">Poids (kg)</label>
-                                            <input
-                                                type="number"
-                                                placeholder="0"
-                                                value={m.poids}
-                                                onChange={(e) => {
-                                                    const updated = [...marchandises];
-                                                    updated[index].poids = e.target.value;
-                                                    setMarchandises(updated);
-                                                }}
-                                                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
-                                            />
-                                        </div>
-                                        <div>
-                                            <label className="text-xs font-medium text-gray-500 mb-1 block">Volume (m³)</label>
-                                            <input
-                                                type="number"
-                                                placeholder="0"
-                                                value={m.volume}
-                                                onChange={(e) => {
-                                                    const updated = [...marchandises];
-                                                    updated[index].volume = e.target.value;
-                                                    setMarchandises(updated);
-                                                }}
-                                                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
-                                            />
-                                        </div>
-                                    </div>
-                                </div>
-                            ))}
-
-                            <button
-                                onClick={() => setMarchandises([...marchandises, { classification: 'STANDARD', poids: '', volume: '', codeSh: '' }])}
-                                className="w-full border-2 border-dashed border-gray-200 text-gray-400 py-3 rounded-xl hover:border-blue-400 hover:text-blue-600 transition text-sm flex items-center justify-center gap-2 mb-5"
-                            >
-                                <Plus size={16} /> Ajouter une marchandise
-                            </button>
-
-                            <div className="flex gap-3">
-                                <button onClick={() => setStep(1)} className="flex-1 border border-gray-200 text-gray-600 py-3 rounded-xl hover:bg-gray-50 font-medium">
-                                    ← Retour
-                                </button>
-                                <button
-                                    onClick={handleSaveMarchandises}
-                                    disabled={loading}
-                                    className="flex-1 bg-blue-600 text-white py-3 rounded-xl hover:bg-blue-700 disabled:opacity-50 font-semibold"
-                                >
-                                    {loading ? 'Sauvegarde...' : 'Continuer →'}
-                                </button>
-                            </div>
-                        </div>
+                        <MarchandisesStep
+                            marchandises={marchandises}
+                            setMarchandises={setMarchandises}
+                            onNext={() => setStep(3)}
+                            onBack={() => setStep(1)}
+                        />
                     )}
-
-                    {/* Step 3 */}
                     {step === 3 && (
-                        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
-                            <div className="flex justify-between items-center mb-2">
-                                <h2 className="text-lg font-bold text-gray-800">Télécharger les Documents</h2>
-                                <span className="bg-green-100 text-green-700 text-xs px-3 py-1 rounded-full font-semibold">Fiche #{ficheId} ✓</span>
-                            </div>
-                            <p className="text-gray-500 text-sm mb-6">Factures, certificats et autres documents requis.</p>
-
-                            {documents.map((doc, index) => (
-                                <div key={index} className="border border-gray-100 rounded-xl p-4 mb-4 bg-gray-50">
-                                    <h3 className="font-semibold text-gray-700 text-sm mb-3">Document #{index + 1}</h3>
-                                    <div className="grid grid-cols-2 gap-3">
-                                        <div>
-                                            <label className="text-xs font-medium text-gray-500 mb-1 block">Type de Document</label>
-                                            <select
-                                                value={doc.type}
-                                                onChange={(e) => {
-                                                    const updated = [...documents];
-                                                    updated[index].type = e.target.value;
-                                                    setDocuments(updated);
-                                                }}
-                                                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
-                                            >
-                                                <option value="">Sélectionner...</option>
-                                                <option value="FACTURE">Facture</option>
-                                                <option value="CERTIFICAT">Certificat</option>
-                                                <option value="BON_LIVRAISON">Bon de livraison</option>
-                                                <option value="ASSURANCE">Assurance</option>
-                                                <option value="AUTRE">Autre</option>
-                                            </select>
-                                        </div>
-                                        <div>
-                                            <label className="text-xs font-medium text-gray-500 mb-1 block">Fichier</label>
-                                            <input
-                                                type="file"
-                                                onChange={(e) => {
-                                                    const updated = [...documents];
-                                                    updated[index].file = e.target.files[0];
-                                                    setDocuments(updated);
-                                                }}
-                                                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white"
-                                            />
-                                        </div>
-                                    </div>
-                                </div>
-                            ))}
-
-                            <button
-                                onClick={() => setDocuments([...documents, { type: '', file: null }])}
-                                className="w-full border-2 border-dashed border-gray-200 text-gray-400 py-3 rounded-xl hover:border-blue-400 hover:text-blue-600 transition text-sm flex items-center justify-center gap-2 mb-5"
-                            >
-                                <Plus size={16} /> Ajouter un document
-                            </button>
-
-                            <div className="flex gap-3">
-                                <button onClick={() => setStep(2)} className="flex-1 border border-gray-200 text-gray-600 py-3 rounded-xl hover:bg-gray-50 font-medium">
-                                    ← Retour
-                                </button>
-                                <button
-                                    onClick={handleSaveDocuments}
-                                    disabled={loading}
-                                    className="flex-1 bg-green-600 text-white py-3 rounded-xl hover:bg-green-700 disabled:opacity-50 font-semibold flex items-center justify-center gap-2"
-                                >
-                                    {loading ? 'Envoi...' : <><CheckCircle size={18} /> Soumettre la Fiche</>}
-                                </button>
-                            </div>
-                        </div>
+                        <OrganismesStep
+                            organismes={organismes}
+                            setOrganismes={setOrganismes}
+                            marchandises={marchandises}
+                            onBack={() => setStep(2)}
+                            onSubmit={handleSubmit}
+                            saving={saving}
+                            error={error}
+                        />
                     )}
+
                 </div>
             </div>
         </div>
