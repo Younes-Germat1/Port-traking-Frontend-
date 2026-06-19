@@ -10,10 +10,10 @@ const Sidebar = () => {
     const navigate = useNavigate();
 
     const links = [
-        { to: '/dashboard',    label: 'Dashboard',       icon: LayoutDashboard, roles: ['ADMIN','IMPORTATEUR','ADII','OPERATEUR','INSPECTEUR'] },
+        { to: '/dashboard',    label: 'Dashboard',        icon: LayoutDashboard, roles: ['ADMIN','IMPORTATEUR','ADII','OPERATEUR','INSPECTEUR'] },
         { to: '/fiches',       label: 'Fiches Suiveuses', icon: FileText,        roles: ['ADMIN','IMPORTATEUR','ADII','OPERATEUR'] },
-        { to: '/conteneurs',   label: 'Conteneurs',       icon: Package,         roles: ['ADMIN','OPERATEUR','ADII'] },
-        { to: '/inspections',  label: 'Inspections',      icon: Search,          roles: ['ADMIN','ADII','INSPECTEUR'] },
+        { to: '/conteneurs',   label: 'Conteneurs',       icon: Package,         roles: ['ADMIN','OPERATEUR'] },
+        { to: '/inspections',  label: 'Inspections',      icon: Search,          roles: ['ADMIN','INSPECTEUR'] },
         { to: '/notifications',label: 'Notifications',    icon: Bell,            roles: ['ADMIN','IMPORTATEUR','ADII','OPERATEUR','INSPECTEUR'] },
         { to: '/admin/users',  label: 'Utilisateurs',     icon: Users,           roles: ['ADMIN'] },
         { to: '/admin/reports',label: 'Rapports',         icon: BarChart3,       roles: ['ADMIN'] },

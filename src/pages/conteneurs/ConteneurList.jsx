@@ -51,11 +51,11 @@ const ConteneurList = () => {
     };
 
     const statutConfig = {
-        ARRIVE:        { color: 'bg-blue-100 text-blue-700',   label: 'Arrivé' },
-        STOCKE:        { color: 'bg-green-100 text-green-700', label: 'Stocké' },
+        ARRIVE:        { color: 'bg-blue-100 text-blue-700',     label: 'Arrivé' },
+        STOCKE:        { color: 'bg-green-100 text-green-700',   label: 'Stocké' },
         EN_INSPECTION: { color: 'bg-yellow-100 text-yellow-700', label: 'En Inspection' },
         CHARGEMENT:    { color: 'bg-purple-100 text-purple-700', label: 'Chargement' },
-        PARTI:         { color: 'bg-gray-100 text-gray-700',   label: 'Parti' },
+        PARTI:         { color: 'bg-gray-100 text-gray-700',     label: 'Parti' },
     };
 
     return (
@@ -105,6 +105,7 @@ const ConteneurList = () => {
                                 <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase">ID</th>
                                 <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase">Statut</th>
                                 <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase">Zone</th>
+                                <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase">Rangée</th>
                                 <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase">Position</th>
                                 <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase">Quai</th>
                                 <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase">Dwell Time</th>
@@ -114,7 +115,7 @@ const ConteneurList = () => {
                             <tbody className="divide-y divide-gray-50">
                             {loading ? (
                                 <tr>
-                                    <td colSpan="7" className="text-center py-12">
+                                    <td colSpan="8" className="text-center py-12">
                                         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
                                     </td>
                                 </tr>
@@ -122,11 +123,12 @@ const ConteneurList = () => {
                                 <tr key={c.id} className="hover:bg-gray-50 transition">
                                     <td className="px-6 py-4 font-semibold text-gray-700">#{c.id}</td>
                                     <td className="px-6 py-4">
-                                            <span className={`px-2.5 py-1 rounded-full text-xs font-semibold ${statutConfig[c.statut]?.color}`}>
-                                                {statutConfig[c.statut]?.label || c.statut}
-                                            </span>
+                                        <span className={`px-2.5 py-1 rounded-full text-xs font-semibold ${statutConfig[c.statut]?.color}`}>
+                                            {statutConfig[c.statut]?.label || c.statut}
+                                        </span>
                                     </td>
                                     <td className="px-6 py-4 text-gray-600">{c.zone || '-'}</td>
+                                    <td className="px-6 py-4 text-gray-600">{c.rangee || '-'}</td>
                                     <td className="px-6 py-4 text-gray-600">{c.position || '-'}</td>
                                     <td className="px-6 py-4 text-gray-600">{c.quai || '-'}</td>
                                     <td className="px-6 py-4">
