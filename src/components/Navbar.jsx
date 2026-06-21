@@ -1,5 +1,5 @@
 import { useAuth } from '../context/AuthContext';
-import { Bell } from 'lucide-react';
+import { Bell, ArrowLeft } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useEffect, useState } from 'react';
 import { getUnreadNotifications } from '../api/notificationAPI';
@@ -32,7 +32,16 @@ const Navbar = ({ title }) => {
 
     return (
         <div className="bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between sticky top-0 z-10">
-            <h1 className="text-xl font-bold text-gray-800">{title}</h1>
+            <div className="flex items-center gap-3">
+                <button
+                    onClick={() => navigate(-1)}
+                    className="p-2 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition"
+                    title="Retour"
+                >
+                    <ArrowLeft size={20} />
+                </button>
+                <h1 className="text-xl font-bold text-gray-800">{title}</h1>
+            </div>
             <div className="flex items-center gap-4">
                 <button
                     onClick={() => { navigate('/notifications'); setUnreadCount(0); }}

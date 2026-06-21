@@ -18,7 +18,7 @@ const STATUT_CONFIG = {
     LIBEREE:    { label: 'Libérée',    color: 'bg-emerald-100 text-emerald-700', icon: CheckCircle },
 };
 
-const FILTRES_ALL      = ['TOUS', 'EN_ATTENTE', 'APPROUVEE', 'REJETEE', 'PLACEE', 'DEDOUANEE', 'LIBEREE'];
+const FILTRES_ALL       = ['TOUS', 'EN_ATTENTE', 'APPROUVEE', 'REJETEE', 'PLACEE', 'DEDOUANEE', 'LIBEREE'];
 const FILTRES_OPERATEUR = ['TOUS', 'APPROUVEE', 'PLACEE', 'DEDOUANEE'];
 
 export default function FicheList() {
@@ -33,7 +33,8 @@ export default function FicheList() {
     const [search, setSearch]   = useState('');
 
     const isOperateur = user?.role === 'OPERATEUR';
-    const FILTRES     = isOperateur ? FILTRES_OPERATEUR : FILTRES_ALL;
+    const isAdmin      = user?.role === 'ADMIN';
+    const FILTRES       = isOperateur ? FILTRES_OPERATEUR : FILTRES_ALL;
 
     useEffect(() => {
         if (user) fetchFiches();
@@ -47,6 +48,7 @@ export default function FicheList() {
             if (user?.role === 'IMPORTATEUR') {
                 data = await getMesFiches(user.id);
             } else {
+                // ADMIN, ADII, OPERATEUR all get full list — filtering happens client-side
                 data = await getAllFiches();
             }
             let all = Array.isArray(data) ? data : [];
@@ -85,7 +87,6 @@ export default function FicheList() {
         });
     };
 
-    // Stats shown depend on role
     const statsToShow = isOperateur
         ? ['APPROUVEE', 'PLACEE', 'DEDOUANEE']
         : ['EN_ATTENTE', 'APPROUVEE', 'REJETEE', 'PLACEE', 'DEDOUANEE', 'LIBEREE'];
@@ -112,6 +113,14 @@ export default function FicheList() {
                             </button>
                         )}
                     </div>
+
+                    {/* Admin info banner */}
+                    {isAdmin && (
+                        <div className="flex items-center gap-2 bg-gray-50 border border-gray-200 text-gray-600 text-sm px-4 py-3 rounded-xl mb-5">
+                            <FileText size={16} />
+                            Vue administrateur — toutes les fiches du système, consultation uniquement.
+                        </div>
+                    )}
 
                     {/* Operator info banner */}
                     {isOperateur && (
@@ -167,14 +176,14 @@ export default function FicheList() {
                         </select>
                     </div>
 
-                    {/* Alerts — only for non-operator roles */}
-                    {!isOperateur && fiches.some(f => f.statut === 'REJETEE') && (
+                    {/* Alerts — only for non-operator, non-admin roles */}
+                    {!isOperateur && !isAdmin && fiches.some(f => f.statut === 'REJETEE') && (
                         <div className="flex items-center gap-2 bg-red-50 border border-red-200 text-red-600 text-sm px-4 py-3 rounded-xl mb-4">
                             <XCircle size={16} />
                             Vous avez {countByStatut('REJETEE')} fiche(s) rejetée(s). Cliquez dessus pour voir le motif.
                         </div>
                     )}
-                    {!isOperateur && fiches.some(f => f.statut === 'LIBEREE') && (
+                    {!isOperateur && !isAdmin && fiches.some(f => f.statut === 'LIBEREE') && (
                         <div className="flex items-center gap-2 bg-emerald-50 border border-emerald-200 text-emerald-600 text-sm px-4 py-3 rounded-xl mb-4">
                             <CheckCircle size={16} />
                             🎉 Vous avez {countByStatut('LIBEREE')} fiche(s) libérée(s) — marchandise prête pour enlèvement !

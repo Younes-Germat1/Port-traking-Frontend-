@@ -19,3 +19,19 @@ export const markAllAsRead = async () => {
     const response = await API.put('/api/notifications/lu-tout');
     return response.data;
 };
+
+/**
+ * Admin only — send a targeted alert to every user of a given role,
+ * optionally linked to a specific fiche.
+ * @param {string} targetRole - 'ADII' | 'OPERATEUR' | 'INSPECTEUR'
+ * @param {string} message - alert text
+ * @param {number|null} ficheId - optional, links the alert to a fiche
+ */
+export const sendAdminAlert = async (targetRole, message, ficheId = null) => {
+    const response = await API.post('/api/notifications/admin-alert', {
+        targetRole,
+        message,
+        ficheId,
+    });
+    return response.data;
+};

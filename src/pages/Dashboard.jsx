@@ -10,7 +10,8 @@ import { useNavigate } from 'react-router-dom';
 import {
     FileText, Package, Users, CheckCircle,
     Clock, XCircle, TrendingUp, ArrowRight,
-    Search, Bell, AlertTriangle, MapPin, Truck
+    Bell, AlertTriangle, MapPin, Truck,
+    ClipboardList, ShieldCheck, Flame, Target
 } from 'lucide-react';
 
 const StatCard = ({ title, value, icon: Icon, color, bg, subtitle, onClick }) => (
@@ -40,19 +41,14 @@ const getDwellColor = (hours, warning = 72, critique = 120) => {
     return 'text-red-600';
 };
 
-const getDwellLabel = (hours, warning = 72, critique = 120) => {
-    if (hours === null || hours === undefined) return '-';
-    if (hours < warning)  return '✅ Normal';
-    if (hours < critique) return '⚠️ Long';
-    return '🔴 Critique';
-};
-
 const PRIORITY_BADGE = {
     CRITIQUE: 'bg-red-100 text-red-700',
     HAUTE:    'bg-orange-100 text-orange-700',
     MOYENNE:  'bg-yellow-100 text-yellow-700',
     NORMALE:  'bg-gray-100 text-gray-600',
 };
+
+const PRIORITY_ORDER = { CRITIQUE: 0, HAUTE: 1, MOYENNE: 2, NORMALE: 3 };
 
 const statutColor = {
     EN_ATTENTE: 'bg-yellow-100 text-yellow-700',
@@ -63,59 +59,190 @@ const statutColor = {
     LIBEREE:    'bg-emerald-100 text-emerald-700',
 };
 
-const TrackingTimeline = ({ statut }) => {
-    const steps = [
-        { key: 'EN_ATTENTE', label: 'Soumise' },
-        { key: 'APPROUVEE',  label: 'Approuvée' },
-        { key: 'PLACEE',     label: 'Placée' },
-        { key: 'DEDOUANEE',  label: 'Dédouanée' },
-        { key: 'LIBEREE',    label: 'Libérée' },
-    ];
+const getFichePriority = (fiche) => {
+    const classifications = (fiche.marchandises || []).map(m => m.classification);
+    if (classifications.includes('DANGEREUSE')) return 'CRITIQUE';
+    if (classifications.includes('PERISSABLE'))  return 'HAUTE';
+    if (classifications.includes('FRAGILE'))     return 'MOYENNE';
+    return 'NORMALE';
+};
 
-    const ORDER = { EN_ATTENTE: 0, APPROUVEE: 1, PLACEE: 2, DEDOUANEE: 3, LIBEREE: 4, REJETEE: -1 };
-    const currentIndex = ORDER[statut] ?? 0;
+// ── Date helpers for goal tracking ──
+const isToday = (dateStr) => {
+    if (!dateStr) return false;
+    const d = new Date(dateStr);
+    const now = new Date();
+    return d.toDateString() === now.toDateString();
+};
 
+const isThisWeek = (dateStr) => {
+    if (!dateStr) return false;
+    const d = new Date(dateStr);
+    const now = new Date();
+    const diffMs = now - d;
+    return diffMs >= 0 && diffMs <= 7 * 24 * 60 * 60 * 1000;
+};
+
+const TIMELINE_STEPS = [
+    { key: 'EN_ATTENTE', label: 'Soumise' },
+    { key: 'APPROUVEE',  label: 'Approuvée' },
+    { key: 'PLACEE',     label: 'Placée' },
+    { key: 'DEDOUANEE',  label: 'Dédouanée' },
+    { key: 'LIBEREE',    label: 'Libérée' },
+];
+const STATUT_ORDER = { EN_ATTENTE: 0, APPROUVEE: 1, PLACEE: 2, DEDOUANEE: 3, LIBEREE: 4, REJETEE: -1 };
+
+const MiniTimeline = ({ statut }) => {
+    const currentIndex = STATUT_ORDER[statut] ?? 0;
     if (statut === 'REJETEE') {
         return (
-            <div className="flex items-center gap-3 px-4 py-3 bg-red-50 border border-red-200 rounded-xl">
-                <div className="w-7 h-7 rounded-full bg-red-500 flex items-center justify-center text-white text-xs font-bold">✕</div>
-                <div>
-                    <p className="text-sm font-semibold text-red-700">Fiche rejetée</p>
-                    <p className="text-xs text-red-400">Veuillez corriger et re-soumettre</p>
-                </div>
+            <div className="flex items-center gap-2 mt-3">
+                <div className="w-6 h-6 rounded-full bg-red-500 flex items-center justify-center text-white text-[10px] font-bold">✕</div>
+                <span className="text-xs text-red-500 font-medium">Rejetée</span>
             </div>
         );
     }
-
     return (
-        <div className="flex items-center">
-            {steps.map((step, index) => {
+        <div className="flex items-center mt-3">
+            {TIMELINE_STEPS.map((step, index) => {
                 const isDone    = index < currentIndex;
                 const isCurrent = index === currentIndex;
                 return (
                     <div key={step.key} className="flex items-center flex-1">
                         <div className="flex flex-col items-center">
-                            <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold transition-all ${
+                            <div className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold ${
                                 isDone    ? 'bg-green-500 text-white' :
-                                    isCurrent ? 'bg-blue-600 text-white ring-4 ring-blue-100' :
+                                    isCurrent ? 'bg-blue-600 text-white ring-2 ring-blue-100' :
                                         'bg-gray-100 text-gray-400'
                             }`}>
                                 {isDone ? '✓' : index + 1}
                             </div>
-                            <p className={`text-xs mt-1.5 font-medium whitespace-nowrap ${
-                                isDone    ? 'text-green-600' :
-                                    isCurrent ? 'text-blue-600' :
-                                        'text-gray-400'
-                            }`}>
-                                {step.label}
-                            </p>
+                            <p className={`text-[10px] mt-1 font-medium whitespace-nowrap ${
+                                isDone ? 'text-green-600' : isCurrent ? 'text-blue-600' : 'text-gray-400'
+                            }`}>{step.label}</p>
                         </div>
-                        {index < steps.length - 1 && (
-                            <div className={`flex-1 h-0.5 mx-1 mb-5 ${isDone ? 'bg-green-400' : 'bg-gray-200'}`} />
+                        {index < TIMELINE_STEPS.length - 1 && (
+                            <div className={`flex-1 h-0.5 mx-1 mb-3.5 ${isDone ? 'bg-green-400' : 'bg-gray-200'}`} />
                         )}
                     </div>
                 );
             })}
+        </div>
+    );
+};
+
+// ── Workflow Graph — Admin only, with bottleneck highlighting and Rejetées branch ──
+const WorkflowGraph = ({ fiches, navigate }) => {
+    const steps = [
+        { label: 'ADII',       sub: 'en attente',  statut: 'EN_ATTENTE', count: fiches.filter(f => f.statut === 'EN_ATTENTE').length, color: 'bg-yellow-50 border-yellow-200 text-yellow-700', dot: 'bg-yellow-400' },
+        { label: 'Opérateur',  sub: 'à placer',     statut: 'APPROUVEE',  count: fiches.filter(f => f.statut === 'APPROUVEE').length,  color: 'bg-blue-50 border-blue-200 text-blue-700',       dot: 'bg-blue-400' },
+        { label: 'Inspecteur', sub: 'à inspecter',  statut: 'PLACEE',     count: fiches.filter(f => f.statut === 'PLACEE').length,     color: 'bg-purple-50 border-purple-200 text-purple-700', dot: 'bg-purple-400' },
+        { label: 'Dédouané',   sub: 'prêts',        statut: 'DEDOUANEE',  count: fiches.filter(f => f.statut === 'DEDOUANEE').length,  color: 'bg-indigo-50 border-indigo-200 text-indigo-700', dot: 'bg-indigo-400' },
+        { label: 'Libéré',     sub: 'terminés',     statut: 'LIBEREE',    count: fiches.filter(f => f.statut === 'LIBEREE').length,    color: 'bg-emerald-50 border-emerald-200 text-emerald-700', dot: 'bg-emerald-400' },
+    ];
+
+    const rejeteesCount = fiches.filter(f => f.statut === 'REJETEE').length;
+
+    const inProgressSteps = steps.filter(s => s.statut !== 'LIBEREE');
+    const maxCount = Math.max(...inProgressSteps.map(s => s.count), 0);
+    const bottleneckLabel = maxCount > 0
+        ? inProgressSteps.find(s => s.count === maxCount)?.label
+        : null;
+
+    return (
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 mb-6">
+            <div className="flex items-center justify-between mb-1">
+                <h3 className="font-bold text-gray-800">Flux de travail en temps réel</h3>
+                {bottleneckLabel && (
+                    <span className="flex items-center gap-1.5 text-xs font-semibold text-orange-600 bg-orange-50 border border-orange-200 px-2.5 py-1 rounded-full">
+                        <Flame size={12} /> Goulot : {bottleneckLabel}
+                    </span>
+                )}
+            </div>
+            <p className="text-xs text-gray-400 mb-5">Cliquez sur une étape pour voir les fiches correspondantes</p>
+
+            <div className="flex items-center overflow-x-auto pb-2">
+                {steps.map((s, i) => {
+                    const isBottleneck = s.label === bottleneckLabel;
+                    return (
+                        <div key={s.label} className="flex items-center shrink-0">
+                            <div
+                                onClick={() => navigate('/fiches', { state: { filtreStatut: s.statut } })}
+                                className={`relative rounded-xl border-2 px-5 py-4 cursor-pointer hover:shadow-lg transition-all duration-200 min-w-[130px] text-center ${s.color} ${isBottleneck ? 'ring-2 ring-orange-300' : ''}`}
+                            >
+                                {isBottleneck && (
+                                    <span className="absolute -top-2 -right-2 bg-orange-500 text-white rounded-full w-5 h-5 flex items-center justify-center">
+                                        <Flame size={11} />
+                                    </span>
+                                )}
+                                <div className={`w-2.5 h-2.5 rounded-full ${s.dot} mx-auto mb-2`} />
+                                <p className="text-sm font-bold">{s.label}</p>
+                                <p className="text-lg font-bold mt-1">{s.count}</p>
+                                <p className="text-xs mt-0.5 opacity-80">{s.sub}</p>
+                            </div>
+                            {i < steps.length - 1 && (
+                                <div className="flex items-center mx-1">
+                                    <div className="w-6 h-0.5 bg-gray-200" />
+                                    <ArrowRight size={14} className="text-gray-300 -ml-1" />
+                                </div>
+                            )}
+                        </div>
+                    );
+                })}
+            </div>
+
+            {rejeteesCount > 0 && (
+                <div
+                    onClick={() => navigate('/fiches', { state: { filtreStatut: 'REJETEE' } })}
+                    className="mt-4 flex items-center gap-3 px-4 py-3 rounded-xl border border-red-200 bg-red-50 cursor-pointer hover:bg-red-100 transition w-fit"
+                >
+                    <XCircle size={18} className="text-red-500" />
+                    <p className="text-sm font-semibold text-red-700">
+                        {rejeteesCount} fiche{rejeteesCount > 1 ? 's' : ''} rejetée{rejeteesCount > 1 ? 's' : ''}
+                    </p>
+                    <span className="text-xs text-red-400">— en dehors du flux, voir détail</span>
+                </div>
+            )}
+        </div>
+    );
+};
+
+// ── Goal Progress Graph — reusable across ADII / Opérateur / Inspecteur ──
+const GoalProgress = ({ label, todayCount, todayGoal, weekCount, weekGoal }) => {
+    const todayPct = todayGoal > 0 ? Math.min((todayCount / todayGoal) * 100, 100) : 0;
+    const weekPct  = weekGoal  > 0 ? Math.min((weekCount  / weekGoal)  * 100, 100) : 0;
+    const barColor = (pct) => pct >= 100 ? 'bg-green-500' : pct >= 50 ? 'bg-yellow-500' : 'bg-red-400';
+
+    return (
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 mb-6">
+            <div className="flex items-center justify-between mb-1">
+                <div className="flex items-center gap-2">
+                    <div className="p-1.5 bg-indigo-50 rounded-lg"><Target size={16} className="text-indigo-600" /></div>
+                    <h3 className="font-bold text-gray-800">{label}</h3>
+                </div>
+                <span className="text-xs text-gray-400">Estimation basée sur l'activité récente</span>
+            </div>
+
+            <div className="space-y-5 mt-5">
+                <div>
+                    <div className="flex justify-between text-sm mb-1.5">
+                        <span className="font-medium text-gray-600">Aujourd'hui</span>
+                        <span className="font-bold text-gray-800">{todayCount} / {todayGoal}</span>
+                    </div>
+                    <div className="w-full bg-gray-100 rounded-full h-3">
+                        <div className={`h-3 rounded-full transition-all ${barColor(todayPct)}`} style={{ width: `${todayPct}%` }} />
+                    </div>
+                </div>
+                <div>
+                    <div className="flex justify-between text-sm mb-1.5">
+                        <span className="font-medium text-gray-600">Cette semaine</span>
+                        <span className="font-bold text-gray-800">{weekCount} / {weekGoal}</span>
+                    </div>
+                    <div className="w-full bg-gray-100 rounded-full h-3">
+                        <div className={`h-3 rounded-full transition-all ${barColor(weekPct)}`} style={{ width: `${weekPct}%` }} />
+                    </div>
+                </div>
+            </div>
         </div>
     );
 };
@@ -208,19 +335,23 @@ const Dashboard = () => {
     const countByStatut = (statut) => fiches.filter(f => f.statut === statut).length;
     const goToFiches = (statut = null) => navigate('/fiches', { state: { filtreStatut: statut } });
 
-    const alertConteneurs = operateurConteneurs.filter(c => {
-        const h = operateurDwellTimes[c.id];
-        const warn = c.warningThreshold || 72;
-        return h !== null && h !== undefined && h >= warn;
-    }).sort((a, b) => {
-        const priorityOrder = { CRITIQUE: 0, HAUTE: 1, MOYENNE: 2, NORMALE: 3 };
-        const pa = priorityOrder[a.priority || 'NORMALE'];
-        const pb = priorityOrder[b.priority || 'NORMALE'];
-        if (pa !== pb) return pa - pb;
-        return (operateurDwellTimes[b.id] || 0) - (operateurDwellTimes[a.id] || 0);
-    });
-
     const fichesEnAttentePlacement = fiches.filter(f => f.statut === 'APPROUVEE');
+    const fichesAValider = fiches
+        .filter(f => f.statut === 'EN_ATTENTE')
+        .sort((a, b) => PRIORITY_ORDER[getFichePriority(a)] - PRIORITY_ORDER[getFichePriority(b)]);
+
+    const conteneursToDo = operateurConteneurs
+        .filter(c => {
+            const h = operateurDwellTimes[c.id];
+            const warn = c.warningThreshold || 72;
+            return h !== null && h !== undefined && h >= warn;
+        })
+        .sort((a, b) => {
+            const pa = PRIORITY_ORDER[a.priority || 'NORMALE'];
+            const pb = PRIORITY_ORDER[b.priority || 'NORMALE'];
+            if (pa !== pb) return pa - pb;
+            return (operateurDwellTimes[b.id] || 0) - (operateurDwellTimes[a.id] || 0);
+        });
 
     const conteneurStatutCount = {
         ARRIVE:        operateurConteneurs.filter(c => c.statut === 'ARRIVE').length,
@@ -229,24 +360,39 @@ const Dashboard = () => {
         CHARGEMENT:    operateurConteneurs.filter(c => c.statut === 'CHARGEMENT').length,
     };
 
+    // ── Goal-tracking counts per role ──
+    // ADII: decisions (approved/rejected) recently made
+    const adiiDecidedToday = fiches.filter(f => (f.statut === 'APPROUVEE' || f.statut === 'REJETEE') && isToday(f.updatedAt)).length;
+    const adiiDecidedWeek  = fiches.filter(f => (f.statut === 'APPROUVEE' || f.statut === 'REJETEE') && isThisWeek(f.updatedAt)).length;
+
+    // Opérateur: fiches that have moved past placement recently (proxy for "placed today/week")
+    const operateurPlacedToday = fiches.filter(f => ['PLACEE', 'DEDOUANEE', 'LIBEREE'].includes(f.statut) && isToday(f.updatedAt)).length;
+    const operateurPlacedWeek  = fiches.filter(f => ['PLACEE', 'DEDOUANEE', 'LIBEREE'].includes(f.statut) && isThisWeek(f.updatedAt)).length;
+
+    // Inspecteur: completed inspections (proxy using inspection.date, since no completion timestamp exists yet)
+    const inspectionsDoneToday = inspections.filter(i => i.resultat && isToday(i.date)).length;
+    const inspectionsDoneWeek  = inspections.filter(i => i.resultat && isThisWeek(i.date)).length;
+
     const renderStats = () => {
         switch (user?.role) {
 
             case 'ADMIN':
                 return (
-                    <div className="grid grid-cols-1 md:grid-cols-4 gap-5 mb-8">
-                        <StatCard title="Total Fiches"  value={fiches.length}                icon={FileText}    color="text-blue-600"   bg="bg-blue-50"   onClick={() => goToFiches()} />
-                        <StatCard title="En Attente"    value={countByStatut('EN_ATTENTE')} icon={Clock}       color="text-yellow-600" bg="bg-yellow-50" onClick={() => goToFiches('EN_ATTENTE')} />
-                        <StatCard title="Approuvées"    value={countByStatut('APPROUVEE')}  icon={CheckCircle} color="text-green-600"  bg="bg-green-50"  onClick={() => goToFiches('APPROUVEE')} />
-                        <StatCard title="Utilisateurs"  value={users.length}                icon={Users}       color="text-purple-600" bg="bg-purple-50" onClick={() => navigate('/admin/users')} />
-                    </div>
+                    <>
+                        <div className="grid grid-cols-1 md:grid-cols-4 gap-5 mb-6">
+                            <StatCard title="Total Fiches"  value={fiches.length}                icon={FileText}    color="text-blue-600"   bg="bg-blue-50"   onClick={() => goToFiches()} />
+                            <StatCard title="En Attente"    value={countByStatut('EN_ATTENTE')} icon={Clock}       color="text-yellow-600" bg="bg-yellow-50" onClick={() => goToFiches('EN_ATTENTE')} />
+                            <StatCard title="Approuvées"    value={countByStatut('APPROUVEE')}  icon={CheckCircle} color="text-green-600"  bg="bg-green-50"  onClick={() => goToFiches('APPROUVEE')} />
+                            <StatCard title="Utilisateurs"  value={users.length}                icon={Users}       color="text-purple-600" bg="bg-purple-50" onClick={() => navigate('/admin/users')} />
+                        </div>
+                        <WorkflowGraph fiches={fiches} navigate={navigate} />
+                    </>
                 );
 
             case 'IMPORTATEUR': {
                 const myFichesFiltered = fiches.filter(f => f.importateurId === user?.id);
                 return (
                     <>
-                        {/* 6 Stats */}
                         <div className="grid grid-cols-3 md:grid-cols-6 gap-3 mb-6">
                             {[
                                 { statut: 'EN_ATTENTE', label: 'En Attente',  color: 'bg-yellow-50 border-yellow-100 text-yellow-700' },
@@ -264,7 +410,6 @@ const Dashboard = () => {
                             ))}
                         </div>
 
-                        {/* Fiches with Timeline */}
                         {myFichesFiltered.length > 0 && (
                             <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 mb-6">
                                 <div className="flex items-center justify-between mb-5">
@@ -275,18 +420,17 @@ const Dashboard = () => {
                                     {myFichesFiltered.slice(0, 3).map(f => (
                                         <div key={f.id} onClick={() => navigate(`/fiches/${f.id}`)}
                                              className="border border-gray-100 rounded-xl p-4 cursor-pointer hover:border-blue-200 hover:bg-blue-50 transition">
-                                            <div className="flex items-center justify-between mb-4">
+                                            <div className="flex items-center justify-between">
                                                 <p className="text-sm font-semibold text-gray-700">Fiche #{f.id}</p>
                                                 <span className={`text-xs px-2.5 py-1 rounded-full font-semibold ${statutColor[f.statut]}`}>{f.statut}</span>
                                             </div>
-                                            <TrackingTimeline statut={f.statut} />
+                                            <MiniTimeline statut={f.statut} />
                                         </div>
                                     ))}
                                 </div>
                             </div>
                         )}
 
-                        {/* Containers */}
                         {conteneurs.length > 0 && (
                             <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 mb-6">
                                 <div className="flex justify-between items-center mb-5">
@@ -295,9 +439,9 @@ const Dashboard = () => {
                                 </div>
                                 <div className="space-y-3">
                                     {conteneurs.map(c => {
-                                        const hours     = dwellTimes[c.id] ?? null;
-                                        const warn      = c.warningThreshold  || 72;
-                                        const crit      = c.critiqueThreshold || 120;
+                                        const hours      = dwellTimes[c.id] ?? null;
+                                        const warn       = c.warningThreshold  || 72;
+                                        const crit       = c.critiqueThreshold || 120;
                                         const isWarning  = hours !== null && hours >= warn && hours < crit;
                                         const isCritique = hours !== null && hours >= crit;
                                         return (
@@ -330,15 +474,12 @@ const Dashboard = () => {
                                         <span className={`text-xl font-bold tabular-nums ${
                                             avgDwell >= (conteneurs[0]?.critiqueThreshold || 120) ? 'text-red-600' :
                                                 avgDwell >= (conteneurs[0]?.warningThreshold  || 72)  ? 'text-yellow-600' : 'text-green-600'
-                                        }`}>
-                                            {formatDwellTime(avgDwell)}
-                                        </span>
+                                        }`}>{formatDwellTime(avgDwell)}</span>
                                     </div>
                                 )}
                             </div>
                         )}
 
-                        {/* Alerts */}
                         {myFichesFiltered.some(f => f.statut === 'REJETEE') && (
                             <div className="bg-red-50 border border-red-200 rounded-xl px-4 py-3 mb-3 flex items-center gap-2 text-sm text-red-600 font-medium">
                                 <XCircle size={16} />
@@ -358,40 +499,58 @@ const Dashboard = () => {
             case 'ADII':
                 return (
                     <>
-                        <div className="grid grid-cols-2 md:grid-cols-4 gap-5 mb-6">
-                            <StatCard title="Total Fiches" value={fiches.length}                icon={FileText}    color="text-blue-600"   bg="bg-blue-50"   onClick={() => goToFiches()} />
-                            <StatCard title="À Valider"    value={countByStatut('EN_ATTENTE')} icon={Clock}       color="text-yellow-600" bg="bg-yellow-50" onClick={() => goToFiches('EN_ATTENTE')} subtitle="En attente de décision" />
-                            <StatCard title="Approuvées"   value={countByStatut('APPROUVEE')}  icon={CheckCircle} color="text-green-600"  bg="bg-green-50"  onClick={() => goToFiches('APPROUVEE')} />
-                            <StatCard title="Rejetées"     value={countByStatut('REJETEE')}    icon={XCircle}     color="text-red-600"    bg="bg-red-50"    onClick={() => goToFiches('REJETEE')} />
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-5 mb-6">
+                            <StatCard title="À Valider"   value={fichesAValider.length}        icon={Clock}       color="text-yellow-600" bg="bg-yellow-50" subtitle="En attente de décision" />
+                            <StatCard title="Approuvées"  value={countByStatut('APPROUVEE')}   icon={ShieldCheck} color="text-green-600"  bg="bg-green-50"  onClick={() => goToFiches('APPROUVEE')} />
+                            <StatCard title="Rejetées"    value={countByStatut('REJETEE')}     icon={XCircle}     color="text-red-600"    bg="bg-red-50"    onClick={() => goToFiches('REJETEE')} />
                         </div>
-                        {countByStatut('EN_ATTENTE') > 0 ? (
-                            <div className="bg-yellow-50 border border-yellow-200 rounded-2xl p-6 mb-6">
+
+                        <GoalProgress
+                            label="Objectif — Décisions ADII"
+                            todayCount={adiiDecidedToday}
+                            todayGoal={8}
+                            weekCount={adiiDecidedWeek}
+                            weekGoal={40}
+                        />
+
+                        {fichesAValider.length > 0 ? (
+                            <div className="bg-white rounded-2xl shadow-sm border border-yellow-100 p-6">
                                 <div className="flex items-center gap-3 mb-4">
-                                    <div className="p-2 bg-yellow-100 rounded-xl"><Clock size={20} className="text-yellow-600" /></div>
-                                    <div>
-                                        <h3 className="font-bold text-yellow-800">Fiches en attente de votre décision</h3>
-                                        <p className="text-xs text-yellow-600">{countByStatut('EN_ATTENTE')} fiche(s) nécessitent votre approbation</p>
+                                    <div className="p-2 bg-yellow-50 rounded-xl">
+                                        <ClipboardList size={20} className="text-yellow-600" />
                                     </div>
-                                    <button onClick={() => goToFiches('EN_ATTENTE')} className="ml-auto text-yellow-700 text-sm font-medium hover:underline flex items-center gap-1">Voir tout <ArrowRight size={14} /></button>
+                                    <div>
+                                        <h3 className="font-bold text-gray-800">Fiches à traiter</h3>
+                                        <p className="text-xs text-gray-400">Triées par priorité de marchandise</p>
+                                    </div>
                                 </div>
                                 <div className="space-y-2">
-                                    {fiches.filter(f => f.statut === 'EN_ATTENTE').slice(0, 5).map(f => (
-                                        <div key={f.id} onClick={() => navigate(`/fiches/${f.id}`)}
-                                             className="flex items-center justify-between px-4 py-3 bg-white border border-yellow-100 rounded-xl hover:border-yellow-300 cursor-pointer transition">
-                                            <div>
-                                                <p className="text-sm font-semibold text-gray-700">Fiche #{f.id}</p>
-                                                <p className="text-xs text-gray-400">{f.importateurNom}</p>
+                                    {fichesAValider.map(f => {
+                                        const priority = getFichePriority(f);
+                                        return (
+                                            <div key={f.id} onClick={() => navigate(`/fiches/${f.id}`)}
+                                                 className="flex items-center justify-between px-4 py-3 bg-yellow-50 border border-yellow-100 rounded-xl hover:border-yellow-300 cursor-pointer transition">
+                                                <div>
+                                                    <p className="text-sm font-semibold text-gray-700">Fiche #{f.id}</p>
+                                                    <p className="text-xs text-gray-400">{f.importateurNom}</p>
+                                                </div>
+                                                <div className="flex items-center gap-2">
+                                                    {priority !== 'NORMALE' && (
+                                                        <span className={`text-xs px-2 py-0.5 rounded-full font-semibold ${PRIORITY_BADGE[priority]}`}>
+                                                            {priority}
+                                                        </span>
+                                                    )}
+                                                    <span className="text-xs text-gray-400">
+                                                        {f.createdAt ? new Date(f.createdAt).toLocaleDateString('fr-FR') : '-'}
+                                                    </span>
+                                                </div>
                                             </div>
-                                            <div className="flex items-center gap-3">
-                                                <span className="text-xs text-gray-400">{f.createdAt ? new Date(f.createdAt).toLocaleDateString('fr-FR') : '-'}</span>
-                                                <span className="text-xs bg-yellow-100 text-yellow-700 px-2.5 py-1 rounded-full font-semibold">EN ATTENTE</span>
-                                            </div>
-                                        </div>
-                                    ))}
+                                        );
+                                    })}
                                 </div>
                             </div>
                         ) : (
-                            <div className="bg-green-50 border border-green-200 rounded-2xl p-6 mb-6 flex items-center gap-3">
+                            <div className="bg-green-50 border border-green-200 rounded-2xl p-6 flex items-center gap-3">
                                 <CheckCircle size={20} className="text-green-500 shrink-0" />
                                 <div>
                                     <p className="text-sm font-semibold text-green-700">Tout est à jour !</p>
@@ -405,53 +564,20 @@ const Dashboard = () => {
             case 'OPERATEUR':
                 return (
                     <>
-                        <div className="grid grid-cols-1 md:grid-cols-4 gap-5 mb-6">
-                            <StatCard title="À Placer"   value={fichesEnAttentePlacement.length} icon={MapPin}        color="text-orange-600" bg="bg-orange-50"  onClick={() => goToFiches('APPROUVEE')} subtitle="Fiches approuvées" />
-                            <StatCard title="Placées"    value={countByStatut('PLACEE')}         icon={Package}       color="text-blue-600"   bg="bg-blue-50"   onClick={() => goToFiches('PLACEE')} />
-                            <StatCard title="Dédouanées" value={countByStatut('DEDOUANEE')}      icon={TrendingUp}    color="text-purple-600" bg="bg-purple-50" onClick={() => goToFiches('DEDOUANEE')} />
-                            <StatCard title="⚠️ Alertes" value={alertConteneurs.length}          icon={AlertTriangle} color="text-red-600"    bg="bg-red-50"    subtitle="Dépassement seuil" />
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-5 mb-6">
+                            <StatCard title="Fiches à placer"  value={fichesEnAttentePlacement.length} icon={MapPin}        color="text-orange-600" bg="bg-orange-50" onClick={() => goToFiches('APPROUVEE')} subtitle="Nouvelles fiches approuvées" />
+                            <StatCard title="En cours"         value={conteneurStatutCount.EN_INSPECTION + conteneurStatutCount.STOCKE} icon={Package} color="text-blue-600" bg="bg-blue-50" subtitle="Stockés ou en inspection" />
+                            <StatCard title="⚠️ Délai dépassé" value={conteneursToDo.length}            icon={AlertTriangle} color="text-red-600"    bg="bg-red-50"    subtitle="Conteneurs en retard, tous statuts" />
                         </div>
-                        {alertConteneurs.length > 0 && (
-                            <div className="bg-red-50 border border-red-200 rounded-2xl p-6 mb-6">
-                                <div className="flex items-center gap-3 mb-4">
-                                    <div className="p-2 bg-red-100 rounded-xl"><AlertTriangle size={20} className="text-red-600" /></div>
-                                    <div>
-                                        <h3 className="font-bold text-red-800">Alertes Dwell Time</h3>
-                                        <p className="text-xs text-red-500">{alertConteneurs.length} conteneur(s) — triés par priorité</p>
-                                    </div>
-                                </div>
-                                <div className="space-y-3">
-                                    {alertConteneurs.slice(0, 6).map(c => {
-                                        const hours = operateurDwellTimes[c.id];
-                                        const warn  = c.warningThreshold  || 72;
-                                        const crit  = c.critiqueThreshold || 120;
-                                        return (
-                                            <div key={c.id} onClick={() => navigate(`/conteneurs/${c.id}`)}
-                                                 className="flex items-center justify-between bg-white border border-red-100 rounded-xl px-4 py-3 cursor-pointer hover:border-red-300 transition">
-                                                <div className="flex items-center gap-3">
-                                                    <div className="w-9 h-9 bg-red-50 rounded-lg flex items-center justify-center"><Package size={16} className="text-red-500" /></div>
-                                                    <div>
-                                                        <div className="flex items-center gap-2">
-                                                            <p className="text-sm font-semibold text-gray-700">Conteneur #{c.id}</p>
-                                                            {c.priority && (
-                                                                <span className={`text-xs px-2 py-0.5 rounded-full font-semibold ${PRIORITY_BADGE[c.priority]}`}>
-                                                                    {c.priority === 'CRITIQUE' ? '☢️' : c.priority === 'HAUTE' ? '🥩' : '⚠️'} {c.priority}
-                                                                </span>
-                                                            )}
-                                                        </div>
-                                                        <p className="text-xs text-gray-400">{c.zone || '-'} — {c.rangee || '-'} — {c.position || '-'}</p>
-                                                    </div>
-                                                </div>
-                                                <div className="text-right">
-                                                    <p className={`text-lg font-bold ${getDwellColor(hours, warn, crit)}`}>{formatDwellTime(hours)}</p>
-                                                    <p className="text-xs text-red-400">{getDwellLabel(hours, warn, crit)}</p>
-                                                </div>
-                                            </div>
-                                        );
-                                    })}
-                                </div>
-                            </div>
-                        )}
+
+                        <GoalProgress
+                            label="Objectif — Placements Opérateur"
+                            todayCount={operateurPlacedToday}
+                            todayGoal={6}
+                            weekCount={operateurPlacedWeek}
+                            weekGoal={30}
+                        />
+
                         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
                             {[
                                 { label: 'Arrivés',       count: conteneurStatutCount.ARRIVE,        color: 'bg-blue-50 text-blue-700 border-blue-100' },
@@ -465,29 +591,88 @@ const Dashboard = () => {
                                 </div>
                             ))}
                         </div>
+
                         {fichesEnAttentePlacement.length > 0 && (
                             <div className="bg-white rounded-2xl shadow-sm border border-orange-100 p-6 mb-6">
                                 <div className="flex items-center justify-between mb-4">
                                     <div className="flex items-center gap-3">
                                         <div className="p-2 bg-orange-50 rounded-xl"><Truck size={20} className="text-orange-500" /></div>
                                         <div>
-                                            <h3 className="font-bold text-gray-800">Fiches en attente de placement</h3>
-                                            <p className="text-xs text-gray-400">{fichesEnAttentePlacement.length} fiche(s) approuvée(s) sans emplacement</p>
+                                            <h3 className="font-bold text-gray-800">Nouvelles fiches à placer</h3>
+                                            <p className="text-xs text-gray-400">{fichesEnAttentePlacement.length} fiche(s) approuvée(s) — aucun emplacement assigné</p>
                                         </div>
                                     </div>
                                     <button onClick={() => goToFiches('APPROUVEE')} className="text-orange-600 text-sm hover:underline flex items-center gap-1">Voir tout <ArrowRight size={14} /></button>
                                 </div>
                                 <div className="space-y-2">
-                                    {fichesEnAttentePlacement.slice(0, 4).map(f => (
-                                        <div key={f.id} onClick={() => navigate(`/fiches/${f.id}`)}
-                                             className="flex items-center justify-between px-4 py-3 rounded-xl border border-gray-100 hover:border-orange-200 hover:bg-orange-50 cursor-pointer transition">
-                                            <div>
-                                                <p className="text-sm font-semibold text-gray-700">Fiche #{f.id}</p>
-                                                <p className="text-xs text-gray-400">{f.importateurNom}</p>
+                                    {fichesEnAttentePlacement
+                                        .sort((a, b) => PRIORITY_ORDER[getFichePriority(a)] - PRIORITY_ORDER[getFichePriority(b)])
+                                        .slice(0, 5)
+                                        .map(f => {
+                                            const priority = getFichePriority(f);
+                                            return (
+                                                <div key={f.id} onClick={() => navigate(`/fiches/${f.id}`)}
+                                                     className="flex items-center justify-between px-4 py-3 rounded-xl border border-gray-100 hover:border-orange-200 hover:bg-orange-50 cursor-pointer transition">
+                                                    <div className="flex items-center gap-3">
+                                                        <div className="w-8 h-8 rounded-lg bg-orange-50 flex items-center justify-center">
+                                                            <ClipboardList size={15} className="text-orange-500" />
+                                                        </div>
+                                                        <div>
+                                                            <p className="text-sm font-semibold text-gray-700">Fiche #{f.id}</p>
+                                                            <p className="text-xs text-gray-400">{f.importateurNom}</p>
+                                                        </div>
+                                                    </div>
+                                                    <div className="flex items-center gap-2">
+                                                        {priority !== 'NORMALE' && (
+                                                            <span className={`text-xs px-2 py-0.5 rounded-full font-semibold ${PRIORITY_BADGE[priority]}`}>{priority}</span>
+                                                        )}
+                                                        <span className="text-xs bg-green-100 text-green-700 px-2.5 py-1 rounded-full font-semibold">APPROUVÉE</span>
+                                                    </div>
+                                                </div>
+                                            );
+                                        })}
+                                </div>
+                            </div>
+                        )}
+
+                        {conteneursToDo.length > 0 && (
+                            <div className="bg-white rounded-2xl shadow-sm border border-red-100 p-6">
+                                <div className="flex items-center gap-3 mb-4">
+                                    <div className="p-2 bg-red-50 rounded-xl"><AlertTriangle size={20} className="text-red-500" /></div>
+                                    <div>
+                                        <h3 className="font-bold text-gray-800">Conteneurs en retard — délai dépassé</h3>
+                                        <p className="text-xs text-gray-400">{conteneursToDo.length} conteneur(s) — tous statuts confondus, triés par priorité</p>
+                                    </div>
+                                </div>
+                                <div className="space-y-2">
+                                    {conteneursToDo.slice(0, 6).map(c => {
+                                        const hours = operateurDwellTimes[c.id];
+                                        const warn  = c.warningThreshold  || 72;
+                                        const crit  = c.critiqueThreshold || 120;
+                                        return (
+                                            <div key={c.id} onClick={() => navigate(`/conteneurs/${c.id}`)}
+                                                 className="flex items-center justify-between bg-gray-50 border border-gray-100 rounded-xl px-4 py-3 cursor-pointer hover:border-red-200 hover:bg-red-50 transition">
+                                                <div className="flex items-center gap-3">
+                                                    <div className="w-8 h-8 bg-red-50 rounded-lg flex items-center justify-center">
+                                                        <Package size={15} className="text-red-500" />
+                                                    </div>
+                                                    <div>
+                                                        <div className="flex items-center gap-2">
+                                                            <p className="text-sm font-semibold text-gray-700">Conteneur #{c.id}</p>
+                                                            {c.priority && c.priority !== 'NORMALE' && (
+                                                                <span className={`text-xs px-2 py-0.5 rounded-full font-semibold ${PRIORITY_BADGE[c.priority]}`}>{c.priority}</span>
+                                                            )}
+                                                        </div>
+                                                        <p className="text-xs text-gray-400">{[c.zone, c.rangee, c.position].filter(Boolean).join(' — ') || 'Emplacement non défini'}</p>
+                                                    </div>
+                                                </div>
+                                                <div className="text-right">
+                                                    <p className={`text-base font-bold ${getDwellColor(hours, warn, crit)}`}>{formatDwellTime(hours)}</p>
+                                                    <p className="text-xs text-red-400">{hours >= crit ? '🔴 Critique' : '⚠️ Long'}</p>
+                                                </div>
                                             </div>
-                                            <span className="text-xs bg-green-100 text-green-700 px-2.5 py-1 rounded-full font-semibold">APPROUVÉE</span>
-                                        </div>
-                                    ))}
+                                        );
+                                    })}
                                 </div>
                             </div>
                         )}
@@ -495,83 +680,73 @@ const Dashboard = () => {
                 );
 
             case 'INSPECTEUR': {
-                const pendingInspections = inspections.filter(i => !i.resultat);
-                const doneInspections    = inspections.filter(i => i.resultat);
+                const pendingInspections = inspections
+                    .filter(i => !i.resultat)
+                    .sort((a, b) => {
+                        const pa = PRIORITY_ORDER[a.priority || 'NORMALE'];
+                        const pb = PRIORITY_ORDER[b.priority || 'NORMALE'];
+                        if (pa !== pb) return pa - pb;
+                        return (b.dwellTimeHours || 0) - (a.dwellTimeHours || 0);
+                    });
+
                 return (
                     <>
-                        <div className="grid grid-cols-2 gap-5 mb-6">
-                            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 flex items-center gap-4">
-                                <div className="bg-yellow-50 p-4 rounded-xl"><Clock size={24} className="text-yellow-600" /></div>
-                                <div><p className="text-gray-500 text-sm">À faire</p><p className="text-3xl font-bold text-gray-800">{pendingInspections.length}</p></div>
-                            </div>
-                            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 flex items-center gap-4">
-                                <div className="bg-green-50 p-4 rounded-xl"><CheckCircle size={24} className="text-green-600" /></div>
-                                <div><p className="text-gray-500 text-sm">Complétées</p><p className="text-3xl font-bold text-gray-800">{doneInspections.length}</p></div>
-                            </div>
+                        <div className="grid grid-cols-1 gap-5 mb-6">
+                            <StatCard title="Inspections à faire" value={pendingInspections.length} icon={Clock} color="text-yellow-600" bg="bg-yellow-50" subtitle="Triées par priorité de marchandise" />
                         </div>
-                        {pendingInspections.length > 0 && (
-                            <div className="bg-yellow-50 border border-yellow-200 rounded-xl px-4 py-3 mb-5 flex items-center gap-2 text-sm text-yellow-700 font-medium">
-                                <Clock size={16} />{pendingInspections.length} inspection(s) en attente de votre validation
-                            </div>
-                        )}
-                        {pendingInspections.length > 0 && (
-                            <div className="bg-white rounded-2xl shadow-sm border border-yellow-100 p-6 mb-6">
+
+                        <GoalProgress
+                            label="Objectif — Inspections complétées"
+                            todayCount={inspectionsDoneToday}
+                            todayGoal={5}
+                            weekCount={inspectionsDoneWeek}
+                            weekGoal={25}
+                        />
+
+                        {pendingInspections.length > 0 ? (
+                            <div className="bg-white rounded-2xl shadow-sm border border-yellow-100 p-6">
                                 <div className="flex items-center gap-3 mb-4">
-                                    <div className="p-2 bg-yellow-50 rounded-xl"><Clock size={20} className="text-yellow-600" /></div>
-                                    <div>
-                                        <h3 className="font-bold text-gray-800">Inspections à effectuer</h3>
-                                        <p className="text-xs text-gray-400">Triées par urgence — les plus longtemps en attente en premier</p>
+                                    <div className="p-2 bg-yellow-50 rounded-xl">
+                                        <ClipboardList size={20} className="text-yellow-600" />
                                     </div>
-                                    <button onClick={() => navigate('/inspections')} className="ml-auto text-yellow-700 text-sm font-medium hover:underline flex items-center gap-1">Voir tout <ArrowRight size={14} /></button>
+                                    <div>
+                                        <h3 className="font-bold text-gray-800">À faire — Inspections</h3>
+                                        <p className="text-xs text-gray-400">Triées par priorité de marchandise</p>
+                                    </div>
                                 </div>
                                 <div className="space-y-2">
-                                    {pendingInspections.slice(0, 5).map(i => (
+                                    {pendingInspections.map(i => (
                                         <div key={i.id} onClick={() => navigate(`/inspections/${i.id}`)}
                                              className="flex items-center justify-between px-4 py-3 bg-yellow-50 border border-yellow-100 rounded-xl hover:border-yellow-300 cursor-pointer transition">
                                             <div className="flex items-center gap-3">
-                                                <div className="w-8 h-8 bg-yellow-100 rounded-lg flex items-center justify-center"><Search size={14} className="text-yellow-600" /></div>
+                                                <div className="w-8 h-8 bg-yellow-100 rounded-lg flex items-center justify-center">
+                                                    <ClipboardList size={15} className="text-yellow-600" />
+                                                </div>
                                                 <div>
                                                     <p className="text-sm font-semibold text-gray-700">Inspection #{i.id}</p>
-                                                    <p className="text-xs text-gray-400">Conteneur #{i.conteneurId}{i.organisme ? ` — ${i.organisme}` : ''}</p>
+                                                    <p className="text-xs text-gray-400">
+                                                        Conteneur #{i.conteneurId}{i.organisme ? ` — ${i.organisme}` : ''}
+                                                    </p>
                                                 </div>
                                             </div>
-                                            <span className="text-xs bg-yellow-100 text-yellow-700 px-2.5 py-1 rounded-full font-semibold">À faire →</span>
+                                            <div className="flex items-center gap-2">
+                                                {i.priority && i.priority !== 'NORMALE' && (
+                                                    <span className={`text-xs px-2 py-0.5 rounded-full font-semibold ${PRIORITY_BADGE[i.priority]}`}>{i.priority}</span>
+                                                )}
+                                                {i.dwellTimeHours > 0 && (
+                                                    <span className="text-xs text-gray-400">{formatDwellTime(i.dwellTimeHours)}</span>
+                                                )}
+                                            </div>
                                         </div>
                                     ))}
                                 </div>
                             </div>
-                        )}
-                        {pendingInspections.length === 0 && (
-                            <div className="bg-green-50 border border-green-200 rounded-2xl p-6 mb-6 flex items-center gap-3">
+                        ) : (
+                            <div className="bg-green-50 border border-green-200 rounded-2xl p-6 flex items-center gap-3">
                                 <CheckCircle size={20} className="text-green-500 shrink-0" />
-                                <div><p className="text-sm font-semibold text-green-700">Tout est à jour !</p><p className="text-xs text-green-600">Aucune inspection en attente.</p></div>
-                            </div>
-                        )}
-                        {doneInspections.length > 0 && (
-                            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
-                                <div className="flex items-center gap-3 mb-4">
-                                    <div className="p-2 bg-green-50 rounded-xl"><CheckCircle size={20} className="text-green-600" /></div>
-                                    <h3 className="font-bold text-gray-800">Inspections complétées</h3>
-                                    <button onClick={() => navigate('/inspections')} className="ml-auto text-blue-600 text-sm font-medium hover:underline flex items-center gap-1">Voir tout <ArrowRight size={14} /></button>
-                                </div>
-                                <div className="space-y-2">
-                                    {doneInspections.slice(0, 5).map(i => (
-                                        <div key={i.id} onClick={() => navigate(`/inspections/${i.id}`)}
-                                             className="flex items-center justify-between px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl hover:border-gray-200 cursor-pointer transition">
-                                            <div className="flex items-center gap-3">
-                                                <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${i.resultat === 'CONFORME' ? 'bg-green-100' : 'bg-red-100'}`}>
-                                                    {i.resultat === 'CONFORME' ? <CheckCircle size={14} className="text-green-600" /> : <XCircle size={14} className="text-red-600" />}
-                                                </div>
-                                                <div>
-                                                    <p className="text-sm font-semibold text-gray-700">Inspection #{i.id}</p>
-                                                    <p className="text-xs text-gray-400">Conteneur #{i.conteneurId}{i.organisme ? ` — ${i.organisme}` : ''}</p>
-                                                </div>
-                                            </div>
-                                            <span className={`text-xs px-2.5 py-1 rounded-full font-semibold ${i.resultat === 'CONFORME' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
-                                                {i.resultat === 'CONFORME' ? '✅ Conforme' : '❌ Non Conforme'}
-                                            </span>
-                                        </div>
-                                    ))}
+                                <div>
+                                    <p className="text-sm font-semibold text-green-700">Tout est à jour !</p>
+                                    <p className="text-xs text-green-600">Aucune inspection en attente.</p>
                                 </div>
                             </div>
                         )}
@@ -609,86 +784,6 @@ const Dashboard = () => {
                             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
                         </div>
                     ) : renderStats()}
-
-                    {user?.role !== 'INSPECTEUR' && user?.role !== 'IMPORTATEUR' && (
-                        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
-                            <div className="flex justify-between items-center mb-5">
-                                <h3 className="font-bold text-gray-800 text-lg">Fiches Récentes</h3>
-                                <button onClick={() => navigate('/fiches')} className="flex items-center gap-1 text-blue-600 text-sm hover:underline font-medium">Voir tout <ArrowRight size={16} /></button>
-                            </div>
-                            <div className="overflow-hidden rounded-xl border border-gray-100">
-                                <table className="w-full text-sm">
-                                    <thead className="bg-gray-50 text-gray-500 uppercase text-xs">
-                                    <tr>
-                                        <th className="px-5 py-3 text-left font-semibold">ID</th>
-                                        <th className="px-5 py-3 text-left font-semibold">Importateur</th>
-                                        <th className="px-5 py-3 text-left font-semibold">Statut</th>
-                                        <th className="px-5 py-3 text-left font-semibold">Date</th>
-                                    </tr>
-                                    </thead>
-                                    <tbody className="divide-y divide-gray-50">
-                                    {fiches.slice(0, 5).map(f => (
-                                        <tr key={f.id} className="hover:bg-gray-50 cursor-pointer transition" onClick={() => navigate(`/fiches/${f.id}`)}>
-                                            <td className="px-5 py-3.5 font-medium text-gray-700">#{f.id}</td>
-                                            <td className="px-5 py-3.5 text-gray-600">{f.importateurNom}</td>
-                                            <td className="px-5 py-3.5"><span className={`px-2.5 py-1 rounded-full text-xs font-semibold ${statutColor[f.statut]}`}>{f.statut}</span></td>
-                                            <td className="px-5 py-3.5 text-gray-500">{f.createdAt ? new Date(f.createdAt).toLocaleDateString('fr-FR') : '-'}</td>
-                                        </tr>
-                                    ))}
-                                    </tbody>
-                                </table>
-                                {fiches.length === 0 && (
-                                    <div className="text-center py-12">
-                                        <FileText size={40} className="text-gray-300 mx-auto mb-3" />
-                                        <p className="text-gray-400">Aucune fiche pour le moment</p>
-                                    </div>
-                                )}
-                            </div>
-                        </div>
-                    )}
-
-                    {user?.role === 'INSPECTEUR' && (
-                        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
-                            <div className="flex justify-between items-center mb-5">
-                                <h3 className="font-bold text-gray-800 text-lg">Mes Inspections</h3>
-                                <button onClick={() => navigate('/inspections')} className="flex items-center gap-1 text-blue-600 text-sm hover:underline font-medium">Voir tout <ArrowRight size={16} /></button>
-                            </div>
-                            <div className="overflow-hidden rounded-xl border border-gray-100">
-                                <table className="w-full text-sm">
-                                    <thead className="bg-gray-50 text-gray-500 uppercase text-xs">
-                                    <tr>
-                                        <th className="px-5 py-3 text-left font-semibold">ID</th>
-                                        <th className="px-5 py-3 text-left font-semibold">Conteneur</th>
-                                        <th className="px-5 py-3 text-left font-semibold">Organisme</th>
-                                        <th className="px-5 py-3 text-left font-semibold">Résultat</th>
-                                    </tr>
-                                    </thead>
-                                    <tbody className="divide-y divide-gray-50">
-                                    {inspections.slice(0, 5).map(i => (
-                                        <tr key={i.id} className="hover:bg-gray-50 cursor-pointer transition" onClick={() => navigate(`/inspections/${i.id}`)}>
-                                            <td className="px-5 py-3.5 font-medium text-gray-700">#{i.id}</td>
-                                            <td className="px-5 py-3.5 text-gray-600">#{i.conteneurId}</td>
-                                            <td className="px-5 py-3.5 text-gray-600">{i.organisme || '-'}</td>
-                                            <td className="px-5 py-3.5">
-                                                <span className={`px-2.5 py-1 rounded-full text-xs font-semibold ${
-                                                    i.resultat === 'CONFORME' ? 'bg-green-100 text-green-700' :
-                                                        i.resultat === 'NON_CONFORME' ? 'bg-red-100 text-red-700' :
-                                                            'bg-yellow-100 text-yellow-700'
-                                                }`}>{i.resultat || 'EN ATTENTE'}</span>
-                                            </td>
-                                        </tr>
-                                    ))}
-                                    </tbody>
-                                </table>
-                                {inspections.length === 0 && (
-                                    <div className="text-center py-12">
-                                        <Search size={40} className="text-gray-300 mx-auto mb-3" />
-                                        <p className="text-gray-400">Aucune inspection assignée</p>
-                                    </div>
-                                )}
-                            </div>
-                        </div>
-                    )}
                 </div>
             </div>
         </div>

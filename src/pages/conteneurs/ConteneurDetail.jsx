@@ -3,8 +3,9 @@ import { useParams, useNavigate } from 'react-router-dom';
 import Sidebar from '../../components/Sidebar';
 import Navbar from '../../components/Navbar';
 import { getConteneurById, assignEmplacement, getDwellTime, getManutentions, createManutention, deleteManutention } from '../../api/conteneurAPI';
+import { sendAdminAlert } from '../../api/notificationAPI';
 import { useAuth } from '../../context/AuthContext';
-import { MapPin, Clock, QrCode, ArrowLeft, CheckCircle, AlertCircle, Loader2, X, Truck, CalendarClock, AlertTriangle } from 'lucide-react';
+import { MapPin, Clock, QrCode, ArrowLeft, CheckCircle, AlertCircle, Loader2, X, Truck, CalendarClock, AlertTriangle, Megaphone, Send, ChevronDown } from 'lucide-react';
 
 const STATUT_CONFIG = {
     ARRIVE:        { color: 'bg-blue-100 text-blue-700 border-blue-200',      label: 'Arrivé' },
@@ -26,6 +27,12 @@ const TYPE_MANUTENTION = [
     { value: 'DECHARGEMENT', label: '📦 Déchargement' },
     { value: 'TRANSFERT',    label: '🔄 Transfert' },
     { value: 'INSPECTION',   label: '🔍 Mise en inspection' },
+];
+
+const ALERT_TARGETS = [
+    { value: 'ADII',       label: 'Agent ADII' },
+    { value: 'OPERATEUR',  label: 'Opérateur Portuaire' },
+    { value: 'INSPECTEUR', label: 'Inspecteur' },
 ];
 
 const formatDwellTime = (hours) => {
@@ -54,6 +61,95 @@ const getDwellBarColor = (hours, warning, critique) => {
     if (hours < warning)  return 'bg-green-500';
     if (hours < critique) return 'bg-yellow-500';
     return 'bg-red-500';
+};
+
+// ── Admin Alert Panel — reused from FicheDetail, linked via conteneur.ficheId ──
+const AdminAlertPanel = ({ ficheId }) => {
+    const [open, setOpen]             = useState(false);
+    const [targetRole, setTargetRole] = useState('OPERATEUR');
+    const [message, setMessage]       = useState('');
+    const [sending, setSending]       = useState(false);
+    const [success, setSuccess]       = useState('');
+    const [error, setError]           = useState('');
+
+    const handleSend = async () => {
+        if (!message.trim()) {
+            setError('Veuillez écrire un message.');
+            return;
+        }
+        try {
+            setSending(true);
+            setError('');
+            const result = await sendAdminAlert(targetRole, message.trim(), ficheId);
+            setSuccess(`Alerte envoyée à ${result.length} utilisateur(s).`);
+            setMessage('');
+            setTimeout(() => setSuccess(''), 4000);
+        } catch {
+            setError("Erreur lors de l'envoi de l'alerte.");
+        } finally {
+            setSending(false);
+        }
+    };
+
+    return (
+        <div className="mb-6 bg-white border border-gray-100 rounded-2xl overflow-hidden">
+            <button
+                onClick={() => setOpen(!open)}
+                className="w-full flex items-center justify-between px-5 py-4 hover:bg-gray-50 transition"
+            >
+                <div className="flex items-center gap-3">
+                    <div className="p-2 bg-indigo-50 rounded-xl"><Megaphone size={18} className="text-indigo-600" /></div>
+                    <span className="font-semibold text-gray-700 text-sm">Envoyer une alerte concernant ce conteneur</span>
+                </div>
+                <ChevronDown size={18} className={`text-gray-400 transition-transform ${open ? 'rotate-180' : ''}`} />
+            </button>
+
+            {open && (
+                <div className="px-5 pb-5 space-y-3 border-t border-gray-100 pt-4">
+                    {success && (
+                        <div className="flex items-center gap-2 text-green-600 text-sm bg-green-50 px-3 py-2 rounded-lg">
+                            <CheckCircle size={15} /> {success}
+                        </div>
+                    )}
+                    {error && (
+                        <div className="flex items-center gap-2 text-red-500 text-sm bg-red-50 px-3 py-2 rounded-lg">
+                            <AlertCircle size={15} /> {error}
+                        </div>
+                    )}
+                    <div>
+                        <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1 block">Destinataire</label>
+                        <select
+                            value={targetRole}
+                            onChange={e => setTargetRole(e.target.value)}
+                            className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400 bg-white"
+                        >
+                            {ALERT_TARGETS.map(t => (
+                                <option key={t.value} value={t.value}>{t.label}</option>
+                            ))}
+                        </select>
+                    </div>
+                    <div>
+                        <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1 block">Message</label>
+                        <textarea
+                            rows={2}
+                            placeholder="Ex: Ce conteneur dépasse le seuil critique, intervention requise."
+                            value={message}
+                            onChange={e => setMessage(e.target.value)}
+                            className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400 bg-white resize-none"
+                        />
+                    </div>
+                    <button
+                        onClick={handleSend}
+                        disabled={sending}
+                        className="flex items-center justify-center gap-2 bg-indigo-600 text-white px-4 py-2.5 rounded-xl text-sm font-semibold hover:bg-indigo-700 disabled:opacity-50 transition"
+                    >
+                        {sending ? <Loader2 size={15} className="animate-spin" /> : <Send size={15} />}
+                        {sending ? 'Envoi...' : "Envoyer l'alerte"}
+                    </button>
+                </div>
+            )}
+        </div>
+    );
 };
 
 const ConteneurDetail = () => {
@@ -109,12 +205,14 @@ const ConteneurDetail = () => {
         e.preventDefault();
         try {
             setSaving(true);
+            setError(null);
             const updated = await assignEmplacement(id, form);
             setConteneur(updated);
             setSuccess('Emplacement assigné avec succès !');
             setTimeout(() => setSuccess(''), 3000);
-        } catch {
-            setError("Erreur lors de l'assignation.");
+        } catch (err) {
+            const msg = err?.response?.data?.message || "Erreur lors de l'assignation.";
+            setError(msg);
         } finally {
             setSaving(false);
         }
@@ -248,6 +346,11 @@ const ConteneurDetail = () => {
                         )}
                     </div>
 
+                    {/* Admin Alert Panel — admin only */}
+                    {user?.role === 'ADMIN' && (
+                        <AdminAlertPanel ficheId={conteneur?.ficheId} />
+                    )}
+
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
 
                         {/* Infos + Dwell Time */}
@@ -327,6 +430,15 @@ const ConteneurDetail = () => {
                         {(user?.role === 'OPERATEUR' || user?.role === 'ADMIN') && (
                             <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
                                 <h3 className="font-bold text-gray-800 mb-5">Assigner Emplacement</h3>
+
+                                {/* Suggested zone hint */}
+                                {conteneur?.suggestedZone && (
+                                    <div className="bg-blue-50 border border-blue-100 rounded-xl px-4 py-3 mb-4 flex items-center gap-2 text-sm text-blue-700">
+                                        <MapPin size={15} />
+                                        Zone suggérée selon la marchandise : <strong>{conteneur.suggestedZone}</strong>
+                                    </div>
+                                )}
+
                                 {success && (
                                     <div className="bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded-xl mb-4 text-sm flex items-center gap-2">
                                         <CheckCircle size={16} /> {success}

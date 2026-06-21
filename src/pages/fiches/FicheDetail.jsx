@@ -3,10 +3,11 @@ import { useParams, useNavigate } from 'react-router-dom';
 import {
     FileText, Download, Upload, Clock, CheckCircle, XCircle,
     AlertCircle, Loader2, ChevronLeft, History, Package,
-    MapPin, Phone, Tag, Weight, RefreshCw, Unlock
+    MapPin, Phone, Tag, Weight, RefreshCw, Unlock, ChevronDown, Megaphone, Send
 } from 'lucide-react';
 import API from '../../api/axiosConfig';
 import { getDocumentsByFiche, uploadDocument, downloadDocument } from '../../api/documentAPI';
+import { sendAdminAlert } from '../../api/notificationAPI';
 import Sidebar from '../../components/Sidebar';
 import Navbar from '../../components/Navbar';
 import { useAuth } from '../../context/AuthContext';
@@ -35,6 +36,251 @@ const CLASSIFICATION_COLORS = {
     FRAGILE:    'bg-blue-100 text-blue-700',
 };
 
+const TIMELINE_STEPS = [
+    { key: 'EN_ATTENTE', label: 'Soumise' },
+    { key: 'APPROUVEE',  label: 'Approuvée' },
+    { key: 'PLACEE',     label: 'Placée' },
+    { key: 'DEDOUANEE',  label: 'Dédouanée' },
+    { key: 'LIBEREE',    label: 'Libérée' },
+];
+const STATUT_ORDER = { EN_ATTENTE: 0, APPROUVEE: 1, PLACEE: 2, DEDOUANEE: 3, LIBEREE: 4, REJETEE: -1 };
+
+const ALERT_TARGETS = [
+    { value: 'ADII',       label: 'Agent ADII' },
+    { value: 'OPERATEUR',  label: 'Opérateur Portuaire' },
+    { value: 'INSPECTEUR', label: 'Inspecteur' },
+];
+
+// ── Interactive Timeline Component ──
+const FicheTimeline = ({ fiche, historique, formatDate, navigate }) => {
+    const [expandedStep, setExpandedStep] = useState(null);
+    const currentIndex = STATUT_ORDER[fiche?.statut] ?? 0;
+    const isRejected = fiche?.statut === 'REJETEE';
+
+    const getHistoFor = (statutKey) =>
+        historique.find(h => h.details?.includes(statutKey) || h.action === (statutKey === 'EN_ATTENTE' ? 'CREATION' : null));
+
+    const toggleStep = (key) => setExpandedStep(prev => prev === key ? null : key);
+
+    if (isRejected) {
+        return (
+            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 mb-5">
+                <h3 className="font-bold text-gray-800 mb-4">Suivi de la fiche</h3>
+                <div className="flex items-center gap-3 px-4 py-3 bg-red-50 border border-red-200 rounded-xl">
+                    <div className="w-8 h-8 rounded-full bg-red-500 flex items-center justify-center text-white text-sm font-bold">✕</div>
+                    <div>
+                        <p className="text-sm font-semibold text-red-700">Fiche rejetée</p>
+                        <p className="text-xs text-red-400">Voir le motif ci-dessous et re-soumettez si nécessaire</p>
+                    </div>
+                </div>
+            </div>
+        );
+    }
+
+    return (
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 mb-5">
+            <h3 className="font-bold text-gray-800 mb-5">Suivi de la fiche</h3>
+
+            <div className="flex items-center">
+                {TIMELINE_STEPS.map((step, index) => {
+                    const isDone    = index < currentIndex;
+                    const isCurrent = index === currentIndex;
+                    const isClickable = isDone || isCurrent;
+                    return (
+                        <div key={step.key} className="flex items-center flex-1">
+                            <div className="flex flex-col items-center">
+                                <button
+                                    onClick={() => isClickable && toggleStep(step.key)}
+                                    disabled={!isClickable}
+                                    className={`w-9 h-9 rounded-full flex items-center justify-center text-xs font-bold transition-all ${
+                                        isDone    ? 'bg-green-500 text-white hover:bg-green-600 cursor-pointer' :
+                                            isCurrent ? 'bg-blue-600 text-white ring-4 ring-blue-100 hover:bg-blue-700 cursor-pointer' :
+                                                'bg-gray-100 text-gray-400 cursor-default'
+                                    }`}
+                                >
+                                    {isDone ? '✓' : index + 1}
+                                </button>
+                                <p className={`text-xs mt-1.5 font-medium whitespace-nowrap ${
+                                    isDone ? 'text-green-600' : isCurrent ? 'text-blue-600' : 'text-gray-400'
+                                }`}>
+                                    {step.label}
+                                </p>
+                            </div>
+                            {index < TIMELINE_STEPS.length - 1 && (
+                                <div className={`flex-1 h-0.5 mx-1 mb-5 ${isDone ? 'bg-green-400' : 'bg-gray-200'}`} />
+                            )}
+                        </div>
+                    );
+                })}
+            </div>
+
+            {/* Expanded panel */}
+            {expandedStep && (
+                <div className="mt-5 pt-5 border-t border-gray-100">
+                    {expandedStep === 'EN_ATTENTE' && (
+                        <div className="bg-yellow-50 border border-yellow-100 rounded-xl p-4 space-y-2">
+                            <p className="text-sm font-semibold text-yellow-800">📋 Fiche soumise</p>
+                            <p className="text-xs text-gray-600">Date de soumission : {formatDate(fiche?.createdAt)}</p>
+                            <p className="text-xs text-gray-600">
+                                Marchandises déclarées : {fiche?.marchandises?.length || 0}
+                            </p>
+                            <p className="text-xs text-gray-600">
+                                Organismes concernés : {fiche?.organismes?.join(', ') || '-'}
+                            </p>
+                        </div>
+                    )}
+
+                    {expandedStep === 'APPROUVEE' && (
+                        <div className="bg-green-50 border border-green-100 rounded-xl p-4 space-y-2">
+                            <p className="text-sm font-semibold text-green-800">✅ Validée par l'ADII</p>
+                            <p className="text-xs text-gray-600">
+                                {STATUT_ORDER[fiche?.statut] >= 1
+                                    ? "Votre fiche a été approuvée et transmise à l'opérateur portuaire pour l'assignation d'un emplacement."
+                                    : "En attente de validation."}
+                            </p>
+                        </div>
+                    )}
+
+                    {expandedStep === 'PLACEE' && (
+                        <div className="bg-purple-50 border border-purple-100 rounded-xl p-4 space-y-2">
+                            <p className="text-sm font-semibold text-purple-800">📦 Emplacement assigné</p>
+                            {fiche?.conteneur ? (
+                                <>
+                                    <div className="grid grid-cols-2 gap-2 text-xs text-gray-600">
+                                        <p>Zone : <span className="font-medium text-gray-800">{fiche.conteneur.zone || '-'}</span></p>
+                                        <p>Rangée : <span className="font-medium text-gray-800">{fiche.conteneur.rangee || '-'}</span></p>
+                                        <p>Position : <span className="font-medium text-gray-800">{fiche.conteneur.position || '-'}</span></p>
+                                        <p>Quai : <span className="font-medium text-gray-800">{fiche.conteneur.quai || '-'}</span></p>
+                                    </div>
+                                    <button
+                                        onClick={() => navigate(`/conteneurs/${fiche.conteneur.id}`)}
+                                        className="text-xs text-purple-600 hover:underline mt-1"
+                                    >
+                                        Voir le détail du conteneur →
+                                    </button>
+                                </>
+                            ) : (
+                                <p className="text-xs text-gray-500">Emplacement pas encore assigné.</p>
+                            )}
+                        </div>
+                    )}
+
+                    {expandedStep === 'DEDOUANEE' && (
+                        <div className="bg-blue-50 border border-blue-100 rounded-xl p-4 space-y-2">
+                            <p className="text-sm font-semibold text-blue-800">🔍 Dédouanement</p>
+                            <p className="text-xs text-gray-600">
+                                {STATUT_ORDER[fiche?.statut] >= 3
+                                    ? "Toutes les inspections requises ont été validées par les organismes de contrôle."
+                                    : "En attente des résultats d'inspection."}
+                            </p>
+                        </div>
+                    )}
+
+                    {expandedStep === 'LIBEREE' && (
+                        <div className="bg-emerald-50 border border-emerald-100 rounded-xl p-4 space-y-2">
+                            <p className="text-sm font-semibold text-emerald-800">🎉 Marchandise libérée</p>
+                            <p className="text-xs text-gray-600">
+                                {STATUT_ORDER[fiche?.statut] >= 4
+                                    ? "Votre marchandise est prête pour l'enlèvement. Présentez-vous au port avec les documents nécessaires."
+                                    : "En attente de libération."}
+                            </p>
+                        </div>
+                    )}
+                </div>
+            )}
+        </div>
+    );
+};
+
+// ── Admin Alert Panel ──
+const AdminAlertPanel = ({ ficheId }) => {
+    const [open, setOpen]         = useState(false);
+    const [targetRole, setTargetRole] = useState('OPERATEUR');
+    const [message, setMessage]   = useState('');
+    const [sending, setSending]   = useState(false);
+    const [success, setSuccess]   = useState('');
+    const [error, setError]       = useState('');
+
+    const handleSend = async () => {
+        if (!message.trim()) {
+            setError('Veuillez écrire un message.');
+            return;
+        }
+        try {
+            setSending(true);
+            setError('');
+            const result = await sendAdminAlert(targetRole, message.trim(), ficheId);
+            setSuccess(`Alerte envoyée à ${result.length} utilisateur(s).`);
+            setMessage('');
+            setTimeout(() => setSuccess(''), 4000);
+        } catch {
+            setError("Erreur lors de l'envoi de l'alerte.");
+        } finally {
+            setSending(false);
+        }
+    };
+
+    return (
+        <div className="mb-5 bg-white border border-gray-100 rounded-2xl overflow-hidden">
+            <button
+                onClick={() => setOpen(!open)}
+                className="w-full flex items-center justify-between px-5 py-4 hover:bg-gray-50 transition"
+            >
+                <div className="flex items-center gap-3">
+                    <div className="p-2 bg-indigo-50 rounded-xl"><Megaphone size={18} className="text-indigo-600" /></div>
+                    <span className="font-semibold text-gray-700 text-sm">Envoyer une alerte concernant cette fiche</span>
+                </div>
+                <ChevronDown size={18} className={`text-gray-400 transition-transform ${open ? 'rotate-180' : ''}`} />
+            </button>
+
+            {open && (
+                <div className="px-5 pb-5 space-y-3 border-t border-gray-100 pt-4">
+                    {success && (
+                        <div className="flex items-center gap-2 text-green-600 text-sm bg-green-50 px-3 py-2 rounded-lg">
+                            <CheckCircle size={15} /> {success}
+                        </div>
+                    )}
+                    {error && (
+                        <div className="flex items-center gap-2 text-red-500 text-sm bg-red-50 px-3 py-2 rounded-lg">
+                            <AlertCircle size={15} /> {error}
+                        </div>
+                    )}
+                    <div>
+                        <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1 block">Destinataire</label>
+                        <select
+                            value={targetRole}
+                            onChange={e => setTargetRole(e.target.value)}
+                            className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400 bg-white"
+                        >
+                            {ALERT_TARGETS.map(t => (
+                                <option key={t.value} value={t.value}>{t.label}</option>
+                            ))}
+                        </select>
+                    </div>
+                    <div>
+                        <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1 block">Message</label>
+                        <textarea
+                            rows={2}
+                            placeholder="Ex: Merci de prioriser cette fiche, le client attend une réponse urgente."
+                            value={message}
+                            onChange={e => setMessage(e.target.value)}
+                            className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400 bg-white resize-none"
+                        />
+                    </div>
+                    <button
+                        onClick={handleSend}
+                        disabled={sending}
+                        className="flex items-center justify-center gap-2 bg-indigo-600 text-white px-4 py-2.5 rounded-xl text-sm font-semibold hover:bg-indigo-700 disabled:opacity-50 transition"
+                    >
+                        {sending ? <Loader2 size={15} className="animate-spin" /> : <Send size={15} />}
+                        {sending ? 'Envoi...' : "Envoyer l'alerte"}
+                    </button>
+                </div>
+            )}
+        </div>
+    );
+};
+
 export default function FicheDetail() {
     const { id } = useParams();
     const navigate = useNavigate();
@@ -47,7 +293,6 @@ export default function FicheDetail() {
     const [error, setError]           = useState(null);
     const [activeTab, setActiveTab]   = useState('details');
 
-    // Upload state
     const [selectedFile, setSelectedFile]   = useState(null);
     const [selectedType, setSelectedType]   = useState('FACTURE');
     const [uploading, setUploading]         = useState(false);
@@ -55,20 +300,17 @@ export default function FicheDetail() {
     const [uploadError, setUploadError]     = useState(null);
     const [downloadingId, setDownloadingId] = useState(null);
 
-    // Re-submit state
     const [showResubmit, setShowResubmit]       = useState(false);
     const [resubmitForm, setResubmitForm]       = useState({ nom: '', adresse: '', contact: '' });
     const [resubmitting, setResubmitting]       = useState(false);
     const [resubmitError, setResubmitError]     = useState(null);
     const [resubmitSuccess, setResubmitSuccess] = useState(false);
 
-    // ADII + Operator action state
     const [motif, setMotif]             = useState('');
     const [adiiLoading, setAdiiLoading] = useState(false);
     const [adiiError, setAdiiError]     = useState(null);
     const [adiiSuccess, setAdiiSuccess] = useState('');
 
-    // Operator LIBEREE state
     const [libereeLoading, setLibereeLoading] = useState(false);
     const [libereeError, setLibereeError]     = useState(null);
     const [libereeSuccess, setLibereeSuccess] = useState('');
@@ -241,8 +483,16 @@ export default function FicheDetail() {
                                 </div>
                             </div>
 
-                            {/* ADII Actions */}
-                            {(user?.role === 'ADII' || user?.role === 'ADMIN') && fiche?.statut === 'EN_ATTENTE' && (
+                            {/* Admin Alert Panel — admin only */}
+                            {user?.role === 'ADMIN' && (
+                                <AdminAlertPanel ficheId={fiche?.id} />
+                            )}
+
+                            {/* Interactive Timeline — IMPORTATEUR mainly, but visible to all */}
+                            <FicheTimeline fiche={fiche} historique={historique} formatDate={formatDate} navigate={navigate} />
+
+                            {/* ADII Actions — ADII only, NOT admin */}
+                            {user?.role === 'ADII' && fiche?.statut === 'EN_ATTENTE' && (
                                 <div className="mb-5 bg-blue-50 border border-blue-200 rounded-xl p-5">
                                     <p className="text-sm font-semibold text-blue-800 mb-3">Action ADII — Décision sur la fiche</p>
                                     {adiiSuccess && (
@@ -272,7 +522,7 @@ export default function FicheDetail() {
                                 </div>
                             )}
 
-                            {/* ── FIX 3: DEDOUANEE visibility for operator ── */}
+                            {/* DEDOUANEE visibility for operator */}
                             {fiche?.statut === 'DEDOUANEE' && (user?.role === 'OPERATEUR' || user?.role === 'ADMIN') && (
                                 <div className="mb-5 bg-blue-50 border border-blue-200 rounded-xl p-4 flex gap-3">
                                     <CheckCircle size={20} className="text-blue-500 mt-0.5 shrink-0" />
@@ -285,7 +535,7 @@ export default function FicheDetail() {
                                 </div>
                             )}
 
-                            {/* ── FIX 2: LIBEREE button for operator ── */}
+                            {/* LIBEREE button for operator */}
                             {fiche?.statut === 'DEDOUANEE' && (user?.role === 'OPERATEUR' || user?.role === 'ADMIN') && (
                                 <div className="mb-5 bg-emerald-50 border border-emerald-200 rounded-xl p-5">
                                     <p className="text-sm font-semibold text-emerald-800 mb-3">

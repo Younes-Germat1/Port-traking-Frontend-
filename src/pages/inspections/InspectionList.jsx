@@ -1,12 +1,9 @@
 import { useEffect, useState } from 'react';
 import Sidebar from '../../components/Sidebar';
 import Navbar from '../../components/Navbar';
-import { getMesTaches, enregistrerResultat, createInspection, getAllInspections } from '../../api/inspectionAPI';
-import { getAllFiches } from '../../api/ficheAPI';
-import { getConteneursByFiche } from '../../api/conteneurAPI';
-import { getAllUsers } from '../../api/userAPI';
+import { getMesTaches, enregistrerResultat, getAllInspections } from '../../api/inspectionAPI';
 import { useAuth } from '../../context/AuthContext';
-import { Search, Plus, CheckCircle, XCircle, Clock, Loader2 } from 'lucide-react';
+import { Search, CheckCircle, XCircle, Clock, Loader2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
 const resultatConfig = {
@@ -20,12 +17,6 @@ const InspectionList = () => {
 
     const [inspections, setInspections]   = useState([]);
     const [loading, setLoading]           = useState(true);
-    const [fiches, setFiches]             = useState([]);
-    const [inspecteurs, setInspecteurs]   = useState([]);
-    const [conteneurs, setConteneurs]     = useState([]);
-    const [selectedFiche, setSelectedFiche] = useState('');
-    const [form, setForm]                 = useState({ conteneurId: '', organisme: '', inspecteurId: '' });
-    const [showCreateForm, setShowCreateForm] = useState(false);
     const [commentModal, setCommentModal] = useState(null);
     const [comment, setComment]           = useState('');
     const [submitting, setSubmitting]     = useState(false);
@@ -34,13 +25,6 @@ const InspectionList = () => {
 
     useEffect(() => {
         fetchInspections();
-        if (isAdmin) {
-            getAllFiches().then(data => setFiches(Array.isArray(data) ? data : [])).catch(() => {});
-            getAllUsers().then(data => {
-                const all = Array.isArray(data) ? data : [];
-                setInspecteurs(all.filter(u => u.role === 'INSPECTEUR'));
-            }).catch(() => {});
-        }
     }, [user]);
 
     const fetchInspections = async () => {
@@ -57,35 +41,6 @@ const InspectionList = () => {
             setInspections([]);
         } finally {
             setLoading(false);
-        }
-    };
-
-    const handleFicheSelect = async (ficheId) => {
-        setSelectedFiche(ficheId);
-        if (ficheId) {
-            try {
-                const data = await getConteneursByFiche(ficheId);
-                setConteneurs(Array.isArray(data) ? data : []);
-            } catch {
-                setConteneurs([]);
-            }
-        }
-    };
-
-    const handleCreateInspection = async (e) => {
-        e.preventDefault();
-        if (!form.conteneurId || !form.organisme || !form.inspecteurId) return;
-        try {
-            setSubmitting(true);
-            await createInspection(form.conteneurId, form.inspecteurId, form.organisme);
-            setShowCreateForm(false);
-            setForm({ conteneurId: '', organisme: '', inspecteurId: '' });
-            setSelectedFiche('');
-            fetchInspections();
-        } catch {
-            alert('Erreur lors de la création.');
-        } finally {
-            setSubmitting(false);
         }
     };
 
@@ -113,7 +68,6 @@ const InspectionList = () => {
                 <Navbar title="Inspections" />
                 <div className="p-6">
 
-                    {/* Stats for inspector */}
                     {user?.role === 'INSPECTEUR' && (
                         <div className="grid grid-cols-2 gap-5 mb-6">
                             <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 flex items-center gap-4">
@@ -137,7 +91,6 @@ const InspectionList = () => {
                         </div>
                     )}
 
-                    {/* Pending alert for inspector */}
                     {user?.role === 'INSPECTEUR' && pendingCount > 0 && (
                         <div className="bg-yellow-50 border border-yellow-200 rounded-xl px-4 py-3 mb-5 flex items-center gap-2 text-sm text-yellow-700 font-medium">
                             <Clock size={16} />
@@ -145,75 +98,13 @@ const InspectionList = () => {
                         </div>
                     )}
 
-                    {/* Create form — ADMIN only */}
                     {isAdmin && (
-                        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 mb-6">
-                            <div className="flex justify-between items-center">
-                                <h3 className="font-bold text-gray-800">Créer une Inspection</h3>
-                                <button
-                                    onClick={() => setShowCreateForm(!showCreateForm)}
-                                    className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-xl hover:bg-blue-700 text-sm font-medium"
-                                >
-                                    <Plus size={16} />
-                                    {showCreateForm ? 'Annuler' : 'Nouvelle Inspection'}
-                                </button>
-                            </div>
-
-                            {showCreateForm && (
-                                <form onSubmit={handleCreateInspection} className="mt-5 pt-5 border-t border-gray-100">
-                                    <div className="grid grid-cols-4 gap-4 mb-4">
-                                        <div>
-                                            <label className="text-xs font-semibold text-gray-500 mb-1.5 block uppercase">Fiche</label>
-                                            <select value={selectedFiche} onChange={(e) => handleFicheSelect(e.target.value)}
-                                                    className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
-                                                <option value="">Sélectionner...</option>
-                                                {fiches.map(f => (
-                                                    <option key={f.id} value={f.id}>Fiche #{f.id} — {f.importateurNom}</option>
-                                                ))}
-                                            </select>
-                                        </div>
-                                        <div>
-                                            <label className="text-xs font-semibold text-gray-500 mb-1.5 block uppercase">Conteneur</label>
-                                            <select value={form.conteneurId} onChange={(e) => setForm({ ...form, conteneurId: e.target.value })}
-                                                    className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
-                                                <option value="">Sélectionner...</option>
-                                                {conteneurs.map(c => (
-                                                    <option key={c.id} value={c.id}>Conteneur #{c.id}</option>
-                                                ))}
-                                            </select>
-                                        </div>
-                                        <div>
-                                            <label className="text-xs font-semibold text-gray-500 mb-1.5 block uppercase">Inspecteur</label>
-                                            <select value={form.inspecteurId} onChange={(e) => setForm({ ...form, inspecteurId: e.target.value })}
-                                                    className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
-                                                <option value="">Sélectionner...</option>
-                                                {inspecteurs.map(i => (
-                                                    <option key={i.id} value={i.id}>{i.nom} — {i.organisme || i.email}</option>
-                                                ))}
-                                            </select>
-                                        </div>
-                                        <div>
-                                            <label className="text-xs font-semibold text-gray-500 mb-1.5 block uppercase">Organisme</label>
-                                            <select value={form.organisme} onChange={(e) => setForm({ ...form, organisme: e.target.value })}
-                                                    className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
-                                                <option value="">Sélectionner...</option>
-                                                <option value="ONSSA">ONSSA</option>
-                                                <option value="AMSSNUR">AMSSNUR</option>
-                                                <option value="ADII">ADII</option>
-                                                <option value="AUTRES">Autres</option>
-                                            </select>
-                                        </div>
-                                    </div>
-                                    <button type="submit" disabled={submitting}
-                                            className="w-full bg-green-600 text-white py-2.5 rounded-xl hover:bg-green-700 font-medium text-sm disabled:opacity-50 flex items-center justify-center gap-2">
-                                        {submitting ? <><Loader2 size={15} className="animate-spin" /> Création...</> : 'Créer l\'Inspection'}
-                                    </button>
-                                </form>
-                            )}
+                        <div className="bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 mb-6 flex items-center gap-2 text-sm text-gray-600">
+                            <Search size={16} />
+                            Vue administrateur — consultation uniquement. Les inspections sont créées par l'agent ADII.
                         </div>
                     )}
 
-                    {/* Table */}
                     <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
                         <table className="w-full text-sm">
                             <thead className="bg-gray-50 border-b border-gray-100">
@@ -255,7 +146,7 @@ const InspectionList = () => {
                                         )}
                                     </td>
                                     <td className="px-6 py-4" onClick={(e) => e.stopPropagation()}>
-                                        {!i.resultat && (user?.role === 'INSPECTEUR' || user?.role === 'ADMIN') && (
+                                        {!i.resultat && user?.role === 'INSPECTEUR' && (
                                             <button onClick={() => setCommentModal(i.id)}
                                                     className="flex items-center gap-1.5 text-blue-600 hover:text-blue-700 font-medium text-sm">
                                                 <Search size={14} /> Enregistrer
@@ -275,7 +166,6 @@ const InspectionList = () => {
                     </div>
                 </div>
 
-                {/* Result Modal */}
                 {commentModal && (
                     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
                         <div className="bg-white rounded-2xl shadow-xl p-6 w-full max-w-md mx-4">

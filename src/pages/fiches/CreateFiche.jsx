@@ -2,10 +2,10 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Sidebar from '../../components/Sidebar';
 import Navbar from '../../components/Navbar';
-import { createFiche } from '../../api/ficheAPI';
+import { createFiche, uploadDocuments } from '../../api/ficheAPI';
+import { useAuth } from '../../context/AuthContext';
 import { MapPin, CheckCircle, AlertCircle, Loader2, Package } from 'lucide-react';
 
-// ─────────────────────────────────────────
 const CLASSIFICATIONS = ['STANDARD', 'DANGEREUSE', 'PERISSABLE', 'FRAGILE'];
 
 const CLASSIFICATION_COLORS = {
@@ -19,7 +19,6 @@ const ORGANISMES_LIST = [
     { id: 'ADII',    label: 'ADII — Douanes',                obligatoire: true  },
     { id: 'ONSSA',   label: 'ONSSA — Sécurité alimentaire',  obligatoire: false },
     { id: 'AMSSNUR', label: 'AMSSNUR — Sécurité nucléaire',  obligatoire: false },
-    { id: 'EACCE',   label: 'EACCE — Contrôle exportations', obligatoire: false },
     { id: 'LPEE',    label: 'LPEE — Essais et études',        obligatoire: false },
 ];
 
@@ -33,10 +32,24 @@ const getOrganismesAuto = (marchandises) => {
 };
 
 // ─────────────────────────────────────────
-// STEP 1 — Importateur
+// Contact validation: +212 phone (13 chars) OR email
 // ─────────────────────────────────────────
+const isValidContact = (value) => {
+    const v = value.trim();
+    const phoneRegex = /^\+212[0-9]{9}$/;        // +212 followed by exactly 9 digits = 13 chars total
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    return phoneRegex.test(v) || emailRegex.test(v);
+};
+
 const ImportateurStep = ({ data, setData, onNext }) => {
-    const isValid = data.nom.trim() && data.adresse.trim() && data.contact.trim();
+    const contactTouched = data.contact.trim().length > 0;
+    const contactValid = !contactTouched || isValidContact(data.contact);
+
+    const isValid =
+        data.nom.trim() &&
+        data.adresse.trim() &&
+        data.contact.trim() &&
+        isValidContact(data.contact);
 
     return (
         <div className="bg-white border border-gray-100 rounded-2xl p-6 shadow-sm space-y-4">
@@ -74,11 +87,19 @@ const ImportateurStep = ({ data, setData, onNext }) => {
                 </label>
                 <input
                     type="text"
-                    placeholder="Ex: +212 6 00 00 00 00 / contact@import.ma"
+                    placeholder="Ex: +212600000000 ou contact@import.ma"
                     value={data.contact}
                     onChange={e => setData({ ...data, contact: e.target.value })}
-                    className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className={`w-full border rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 transition
+                        ${!contactValid
+                        ? 'border-red-300 focus:ring-red-400'
+                        : 'border-gray-200 focus:ring-blue-500'}`}
                 />
+                {!contactValid && (
+                    <p className="text-xs text-red-500 mt-1">
+                        Format invalide. Utilisez +212XXXXXXXXX (téléphone) ou une adresse email valide.
+                    </p>
+                )}
             </div>
 
             <button
@@ -92,9 +113,6 @@ const ImportateurStep = ({ data, setData, onNext }) => {
     );
 };
 
-// ─────────────────────────────────────────
-// STEP 2 — Marchandises
-// ─────────────────────────────────────────
 const MarchandisesStep = ({ marchandises, setMarchandises, onNext, onBack }) => {
 
     const addMarchandise = () => {
@@ -159,7 +177,6 @@ const MarchandisesStep = ({ marchandises, setMarchandises, onNext, onBack }) => 
                         )}
                     </div>
 
-                    {/* Description */}
                     <div className="mb-3">
                         <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1 block">
                             Description *
@@ -173,7 +190,6 @@ const MarchandisesStep = ({ marchandises, setMarchandises, onNext, onBack }) => 
                         />
                     </div>
 
-                    {/* Classification + Code SH */}
                     <div className="grid grid-cols-2 gap-3 mb-3">
                         <div>
                             <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1 block">
@@ -203,7 +219,6 @@ const MarchandisesStep = ({ marchandises, setMarchandises, onNext, onBack }) => 
                         </div>
                     </div>
 
-                    {/* Poids + Volume */}
                     <div className="grid grid-cols-2 gap-3 mb-3">
                         <div>
                             <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1 block">
@@ -231,7 +246,6 @@ const MarchandisesStep = ({ marchandises, setMarchandises, onNext, onBack }) => 
                         </div>
                     </div>
 
-                    {/* Documents — obligatoire */}
                     <div className="mb-3">
                         <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1 block">
                             Documents joints (factures, certificats) *
@@ -270,7 +284,6 @@ const MarchandisesStep = ({ marchandises, setMarchandises, onNext, onBack }) => 
                         )}
                     </div>
 
-                    {/* Classification badge */}
                     <span className={`text-xs font-semibold px-3 py-1 rounded-full ${CLASSIFICATION_COLORS[m.classification]}`}>
                         {m.classification}
                     </span>
@@ -296,12 +309,8 @@ const MarchandisesStep = ({ marchandises, setMarchandises, onNext, onBack }) => 
     );
 };
 
-// ─────────────────────────────────────────
-// STEP 3 — Organismes
-// ─────────────────────────────────────────
 const OrganismesStep = ({ organismes, setOrganismes, marchandises, onBack, onSubmit, saving, error }) => {
 
-    // ✅ Re-runs every time marchandises changes (e.g. after going back)
     useEffect(() => {
         const auto = getOrganismesAuto(marchandises);
         setOrganismes(prev => {
@@ -394,11 +403,9 @@ const OrganismesStep = ({ organismes, setOrganismes, marchandises, onBack, onSub
     );
 };
 
-// ─────────────────────────────────────────
-// PARENT — CreateFiche
-// ─────────────────────────────────────────
 const CreateFiche = () => {
     const navigate = useNavigate();
+    const { user } = useAuth();
 
     const [step, setStep]     = useState(1);
     const [saving, setSaving] = useState(false);
@@ -421,24 +428,26 @@ const CreateFiche = () => {
             setSaving(true);
             setError(null);
 
-            const formData = new FormData();
-            formData.append('importateurNom',     importateur.nom);
-            formData.append('importateurAdresse', importateur.adresse);
-            formData.append('importateurContact', importateur.contact);
-            formData.append('organismes',         JSON.stringify(organismes));
+            // 1. Create the fiche as plain JSON (importateur + marchandises + organismes)
+            const payload = {
+                importateurId: user.id,
+                importateurNom: importateur.nom,
+                importateurAdresse: importateur.adresse,
+                importateurContact: importateur.contact,
+                organismes,
+                marchandises: marchandises.map(({ documents, id, ...rest }) => rest),
+            };
 
-            const marchandisesData = marchandises.map(({ documents, ...rest }) => rest);
-            formData.append('marchandises', JSON.stringify(marchandisesData));
+            const ficheCreee = await createFiche(payload);
 
-            marchandises.forEach(m => {
-                m.documents.forEach(file => {
-                    formData.append('documents', file);
-                });
-            });
+            // 2. Upload all collected documents separately, now that we have a fiche id
+            const allFiles = marchandises.flatMap(m => m.documents);
+            if (allFiles.length > 0) {
+                await uploadDocuments(ficheCreee.id, allFiles);
+            }
 
-            await createFiche(formData);
             navigate('/fiches');
-        } catch {
+        } catch (err) {
             setError('Erreur lors de la soumission. Veuillez réessayer.');
         } finally {
             setSaving(false);
@@ -454,7 +463,6 @@ const CreateFiche = () => {
                 <Navbar title="Nouvelle Fiche Suiveuse" />
                 <div className="max-w-2xl mx-auto p-6">
 
-                    {/* Stepper */}
                     <div className="flex items-center gap-2 mb-6">
                         {STEPS.map((label, i) => {
                             const num    = i + 1;
@@ -474,7 +482,6 @@ const CreateFiche = () => {
                         })}
                     </div>
 
-                    {/* Steps */}
                     {step === 1 && (
                         <ImportateurStep
                             data={importateur}

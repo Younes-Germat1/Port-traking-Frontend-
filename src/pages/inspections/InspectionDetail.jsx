@@ -7,7 +7,7 @@ import { useAuth } from '../../context/AuthContext';
 import {
     CheckCircle, XCircle, ArrowLeft,
     Package, MapPin, AlertTriangle, Loader2,
-    Camera, Weight, FileText
+    Camera, Weight, FileText, X
 } from 'lucide-react';
 
 const CLASSIFICATION_COLORS = {
@@ -42,7 +42,18 @@ const InspectionDetail = () => {
     const [photoSuccess, setPhotoSuccess]   = useState('');
     const [photoError, setPhotoError]       = useState('');
 
+    // Lightbox state
+    const [lightboxOpen, setLightboxOpen] = useState(false);
+
     useEffect(() => { fetchData(); }, [id]);
+
+    // Allow closing the lightbox with Escape
+    useEffect(() => {
+        if (!lightboxOpen) return;
+        const onKeyDown = (e) => { if (e.key === 'Escape') setLightboxOpen(false); };
+        window.addEventListener('keydown', onKeyDown);
+        return () => window.removeEventListener('keydown', onKeyDown);
+    }, [lightboxOpen]);
 
     const fetchData = async () => {
         try {
@@ -96,6 +107,7 @@ const InspectionDetail = () => {
     const marchandises = inspection?.marchandises || [];
     const priority     = inspection?.priority || 'NORMALE';
     const priorityCfg  = PRIORITY_CONFIG[priority] || PRIORITY_CONFIG.NORMALE;
+    const photoUrl     = inspection?.photoPath ? `http://localhost:8080/${inspection.photoPath}` : null;
 
     return (
         <div className="flex bg-gray-50 min-h-screen">
@@ -176,15 +188,17 @@ const InspectionDetail = () => {
                                         )}
                                     </div>
 
-                                    {/* Photo */}
-                                    {inspection.photoPath && (
+                                    {/* Photo — click to enlarge */}
+                                    {photoUrl && (
                                         <div className="mt-5 pt-5 border-t border-gray-100">
                                             <p className="text-sm font-semibold text-gray-600 mb-3">📸 Photo d'inspection</p>
                                             <img
-                                                src={`http://localhost:8080/${inspection.photoPath}`}
+                                                src={photoUrl}
                                                 alt="Photo inspection"
-                                                className="w-full rounded-xl border border-gray-100 object-cover max-h-48"
+                                                onClick={() => setLightboxOpen(true)}
+                                                className="w-full rounded-xl border border-gray-100 object-cover max-h-48 cursor-zoom-in hover:opacity-90 transition"
                                             />
+                                            <p className="text-xs text-gray-400 mt-1.5">Cliquez sur la photo pour l'agrandir</p>
                                         </div>
                                     )}
                                 </div>
@@ -354,6 +368,27 @@ const InspectionDetail = () => {
                     )}
                 </div>
             </div>
+
+            {/* Lightbox overlay */}
+            {lightboxOpen && photoUrl && (
+                <div
+                    onClick={() => setLightboxOpen(false)}
+                    className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-6 cursor-zoom-out"
+                >
+                    <button
+                        onClick={() => setLightboxOpen(false)}
+                        className="absolute top-5 right-5 text-white/80 hover:text-white bg-white/10 hover:bg-white/20 rounded-full p-2 transition"
+                    >
+                        <X size={22} />
+                    </button>
+                    <img
+                        src={photoUrl}
+                        alt="Photo inspection agrandie"
+                        onClick={(e) => e.stopPropagation()}
+                        className="max-w-full max-h-full rounded-xl shadow-2xl cursor-default"
+                    />
+                </div>
+            )}
         </div>
     );
 };

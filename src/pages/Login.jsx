@@ -2,14 +2,13 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { login, register } from '../api/authAPI';
 import { useAuth } from '../context/AuthContext';
-import { Mail, Lock, Eye, EyeOff, XCircle, User, CheckCircle, Phone } from 'lucide-react';
+import { Mail, Lock, Eye, EyeOff, XCircle, User, CheckCircle } from 'lucide-react';
 
 const Login = () => {
     const [mode, setMode]                       = useState('login');
     const [email, setEmail]                     = useState('');
     const [password, setPassword]               = useState('');
     const [nom, setNom]                         = useState('');
-    const [telephone, setTelephone]             = useState('');
     const [confirmPassword, setConfirmPassword] = useState('');
     const [showPassword, setShowPassword]       = useState(false);
     const [error, setError]                     = useState('');
@@ -40,10 +39,10 @@ const Login = () => {
         if (password.length < 6) { setError('Le mot de passe doit contenir au moins 6 caractères.'); return; }
         setLoading(true);
         try {
-            await register({ nom, email, password, telephone }, 'IMPORTATEUR');
+            await register({ nom, email, password }, 'IMPORTATEUR');
             setSuccess('Compte créé avec succès ! Vous pouvez maintenant vous connecter.');
             setMode('login');
-            setPassword(''); setNom(''); setConfirmPassword(''); setTelephone('');
+            setPassword(''); setNom(''); setConfirmPassword('');
         } catch {
             setError('Cet email est déjà utilisé ou une erreur est survenue.');
         } finally {
@@ -156,15 +155,6 @@ const Login = () => {
                                     <input type="email" value={email} onChange={(e) => setEmail(e.target.value)}
                                            className="w-full border border-gray-200 rounded-xl pl-11 pr-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-700 bg-gray-50"
                                            placeholder="contact@societe.ma" required />
-                                </div>
-                            </div>
-                            <div>
-                                <label className="block text-sm font-semibold text-gray-700 mb-2">Téléphone</label>
-                                <div className="relative">
-                                    <Phone size={18} className="absolute left-3.5 top-3.5 text-gray-400" />
-                                    <input type="tel" value={telephone} onChange={(e) => setTelephone(e.target.value)}
-                                           className="w-full border border-gray-200 rounded-xl pl-11 pr-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-700 bg-gray-50"
-                                           placeholder="Ex: 0612345678" required />
                                 </div>
                             </div>
                             <div>

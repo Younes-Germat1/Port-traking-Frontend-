@@ -5,18 +5,20 @@ import { getAllFiches } from '../../api/ficheAPI';
 import * as XLSX from 'xlsx';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
-import { BarChart3, FileSpreadsheet, FileText, Download } from 'lucide-react';
+import { BarChart3, FileSpreadsheet, FileText, Download, AlertCircle } from 'lucide-react';
 
 const Reports = () => {
     const [loading, setLoading] = useState(false);
     const [loadingType, setLoadingType] = useState('');
+    const [error, setError] = useState(null);
 
     const exportExcel = async () => {
         setLoading(true);
         setLoadingType('excel');
+        setError(null);
         try {
-            const res = await getAllFiches();
-            const data = res.data.map(f => ({
+            const fiches = await getAllFiches(); // already an array — no .data here
+            const data = fiches.map(f => ({
                 'ID': f.id,
                 'Importateur': f.importateurNom,
                 'Statut': f.statut,
@@ -27,6 +29,9 @@ const Reports = () => {
             const wb = XLSX.utils.book_new();
             XLSX.utils.book_append_sheet(wb, ws, 'Fiches');
             XLSX.writeFile(wb, 'rapport_fiches.xlsx');
+        } catch (err) {
+            console.error('Export Excel failed:', err);
+            setError("Échec de l'export Excel. Veuillez réessayer.");
         } finally {
             setLoading(false);
             setLoadingType('');
@@ -36,8 +41,9 @@ const Reports = () => {
     const exportPDF = async () => {
         setLoading(true);
         setLoadingType('pdf');
+        setError(null);
         try {
-            const res = await getAllFiches();
+            const fiches = await getAllFiches(); // already an array — no .data here
             const doc = new jsPDF();
 
             doc.setFontSize(20);
@@ -49,12 +55,12 @@ const Reports = () => {
             doc.setFontSize(10);
             doc.setTextColor(100, 100, 100);
             doc.text(`Généré le: ${new Date().toLocaleDateString('fr-FR')}`, 14, 38);
-            doc.text(`Total: ${res.data.length} fiche(s)`, 14, 44);
+            doc.text(`Total: ${fiches.length} fiche(s)`, 14, 44);
 
             autoTable(doc, {
                 startY: 52,
                 head: [['ID', 'Importateur', 'Statut', 'Date Création']],
-                body: res.data.map(f => [
+                body: fiches.map(f => [
                     `#${f.id}`,
                     f.importateurNom,
                     f.statut,
@@ -66,6 +72,9 @@ const Reports = () => {
             });
 
             doc.save('rapport_fiches.pdf');
+        } catch (err) {
+            console.error('Export PDF failed:', err);
+            setError("Échec de l'export PDF. Veuillez réessayer.");
         } finally {
             setLoading(false);
             setLoadingType('');
@@ -91,6 +100,12 @@ const Reports = () => {
                             </div>
                         </div>
                     </div>
+
+                    {error && (
+                        <div className="flex items-center gap-2 bg-red-50 border border-red-200 text-red-600 text-sm px-4 py-3 rounded-xl mb-6">
+                            <AlertCircle size={16} /> {error}
+                        </div>
+                    )}
 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
 
