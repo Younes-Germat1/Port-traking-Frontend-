@@ -235,9 +235,7 @@ const InspectionDetail = () => {
                                                         </p>
                                                         {m.classification && (
                                                             <span className={`text-xs font-semibold px-2 py-1 rounded-full ${CLASSIFICATION_COLORS[m.classification] || 'bg-gray-100 text-gray-600'}`}>
-                                                                {m.classification === 'DANGEREUSE' ? '☢️ Dangereuse' :
-                                                                    m.classification === 'PERISSABLE' ? '🥩 Périssable' :
-                                                                        m.classification === 'FRAGILE'    ? '⚠️ Fragile'    : '📦 Standard'}
+                                                                {m.classification}
                                                             </span>
                                                         )}
                                                     </div>
@@ -274,8 +272,8 @@ const InspectionDetail = () => {
                                 </div>
                             </div>
 
-                            {/* Photo Upload */}
-                            {(user?.role === 'INSPECTEUR' || user?.role === 'ADMIN') && (
+                            {/* Photo Upload — inspecteur only, only while inspection is still pending */}
+                            {user?.role === 'INSPECTEUR' && !inspection.resultat && (
                                 <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
                                     <h3 className="font-bold text-gray-800 mb-5 flex items-center gap-2">
                                         <Camera size={18} className="text-blue-500" /> Ajouter une photo
@@ -309,7 +307,7 @@ const InspectionDetail = () => {
                             )}
 
                             {/* Action section */}
-                            {!inspection.resultat && (user?.role === 'INSPECTEUR' || user?.role === 'ADMIN') && (
+                            {!inspection.resultat && user?.role === 'INSPECTEUR' && (
                                 <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
                                     <h3 className="font-bold text-gray-800 mb-5">Enregistrer le Résultat</h3>
                                     {success && (

@@ -5,7 +5,7 @@ import Navbar from '../../components/Navbar';
 import { getConteneursByFiche, createConteneur, getAllConteneurs } from '../../api/conteneurAPI';
 import { getAllFiches } from '../../api/ficheAPI';
 import { useAuth } from '../../context/AuthContext';
-import { Package, Plus, MapPin, Clock, List, Map as MapIcon, ShieldAlert, Snowflake, AlertTriangle, Box, X, Search } from 'lucide-react';
+import { Package, Plus, MapPin, Clock, List, Map as MapIcon, ShieldAlert, Snowflake, AlertTriangle, Box, X, Search, Loader2 } from 'lucide-react';
 
 const statutConfig = {
     ARRIVE:        { color: 'bg-blue-100 text-blue-700',     label: 'Arrivé' },
@@ -34,12 +34,6 @@ const getSlotStatus = (c) => {
     return 'normal';
 };
 
-const SLOT_CLASS = {
-    critique:  'bg-red-500 border-red-600 hover:bg-red-600',
-    attention: 'bg-yellow-400 border-yellow-500 hover:bg-yellow-500',
-    normal:    'bg-green-500 border-green-600 hover:bg-green-600',
-};
-
 const ConteneurList = () => {
     const { user } = useAuth();
     const navigate = useNavigate();
@@ -50,14 +44,11 @@ const ConteneurList = () => {
     const [loadingConteneurs, setLoadingConteneurs] = useState(true);
 
     const [fiches, setFiches] = useState([]);
-    const [showCreatePanel, setShowCreatePanel] = useState(false);
-    const [selectedFiche, setSelectedFiche] = useState('');
-    const [creating, setCreating] = useState(false);
+    const [placingId, setPlacingId] = useState(null);
 
     const [search, setSearch] = useState('');
     const [statutFilter, setStatutFilter] = useState('TOUS');
     const [expandedSection, setExpandedSection] = useState(null);
-    const [hoveredId, setHoveredId] = useState(null);
 
     useEffect(() => {
         fetchConteneurs();
@@ -88,26 +79,34 @@ const ConteneurList = () => {
         return map;
     }, [fiches]);
 
-    const filteredConteneurs = allConteneurs.filter(c => {
-        const matchStatut = statutFilter === 'TOUS' || c.statut === statutFilter;
-        const term = search.trim().toLowerCase();
-        const matchSearch = term === '' ||
-            c.id.toString().includes(term) ||
-            c.ficheId?.toString().includes(term) ||
-            (ficheNomById[c.ficheId] || '').toLowerCase().includes(term);
-        return matchStatut && matchSearch;
-    });
+    const filteredConteneurs = allConteneurs
+        .filter(c => {
+            const matchStatut = statutFilter === 'TOUS' || c.statut === statutFilter;
+            const term = search.trim().toLowerCase();
+            const matchSearch = term === '' ||
+                c.id.toString().includes(term) ||
+                c.ficheId?.toString().includes(term) ||
+                (ficheNomById[c.ficheId] || '').toLowerCase().includes(term);
+            return matchStatut && matchSearch;
+        })
+        .sort((a, b) => a.id - b.id);
 
-    const handleCreateConteneur = async () => {
-        if (!selectedFiche) return;
-        setCreating(true);
+    // ── Fiches approuvées qui n'ont pas encore de conteneur ──
+    const fichesAPlacer = useMemo(() => {
+        if (user?.role !== 'OPERATEUR') return [];
+        const ficheIdsAvecConteneur = new Set(allConteneurs.map(c => c.ficheId));
+        return fiches.filter(f => f.statut === 'APPROUVEE' && !ficheIdsAvecConteneur.has(f.id));
+    }, [fiches, allConteneurs, user]);
+
+    const handlePlacerFiche = async (ficheId) => {
+        setPlacingId(ficheId);
         try {
-            await createConteneur(selectedFiche);
-            await fetchConteneurs();
-            setSelectedFiche('');
-            setShowCreatePanel(false);
+            const newConteneur = await createConteneur(ficheId);
+            navigate(`/conteneurs/${newConteneur.id}`);
+        } catch {
+            alert('Erreur lors de la création du conteneur.');
         } finally {
-            setCreating(false);
+            setPlacingId(null);
         }
     };
 
@@ -128,62 +127,51 @@ const ConteneurList = () => {
                 <Navbar title="Conteneurs" />
                 <div className="p-6">
 
-                    <div className="flex items-center justify-between gap-3 mb-6">
-                        <div className="flex items-center gap-3">
-                            <button
-                                onClick={() => setView('list')}
-                                className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold transition ${
-                                    view === 'list' ? 'bg-blue-600 text-white' : 'bg-white border border-gray-200 text-gray-600 hover:border-blue-300'
-                                }`}
-                            >
-                                <List size={16} /> Liste des conteneurs
-                            </button>
-                            <button
-                                onClick={() => setView('map')}
-                                className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold transition ${
-                                    view === 'map' ? 'bg-blue-600 text-white' : 'bg-white border border-gray-200 text-gray-600 hover:border-blue-300'
-                                }`}
-                            >
-                                <MapIcon size={16} /> Carte du port
-                            </button>
-                        </div>
-
-                        {user?.role === 'OPERATEUR' && view === 'list' && (
-                            <button
-                                onClick={() => setShowCreatePanel(!showCreatePanel)}
-                                className="flex items-center gap-2 bg-green-600 text-white px-4 py-2.5 rounded-xl hover:bg-green-700 text-sm font-medium transition"
-                            >
-                                <Plus size={16} /> Nouveau conteneur
-                            </button>
-                        )}
+                    <div className="flex items-center gap-3 mb-6">
+                        <button
+                            onClick={() => setView('list')}
+                            className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold transition ${
+                                view === 'list' ? 'bg-blue-600 text-white' : 'bg-white border border-gray-200 text-gray-600 hover:border-blue-300'
+                            }`}
+                        >
+                            <List size={16} /> Liste des conteneurs
+                        </button>
+                        <button
+                            onClick={() => setView('map')}
+                            className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold transition ${
+                                view === 'map' ? 'bg-blue-600 text-white' : 'bg-white border border-gray-200 text-gray-600 hover:border-blue-300'
+                            }`}
+                        >
+                            <MapIcon size={16} /> Carte du port
+                        </button>
                     </div>
 
                     {view === 'list' && (
                         <>
-                            {showCreatePanel && user?.role === 'OPERATEUR' && (
-                                <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5 mb-5">
-                                    <h3 className="font-semibold text-gray-700 mb-3 text-sm">Créer un conteneur pour une fiche approuvée</h3>
-                                    <div className="flex gap-3">
-                                        <select
-                                            value={selectedFiche}
-                                            onChange={(e) => setSelectedFiche(e.target.value)}
-                                            className="flex-1 border border-gray-200 rounded-xl px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
-                                        >
-                                            <option value="">Sélectionner une fiche...</option>
-                                            {fiches.map(f => (
-                                                <option key={f.id} value={f.id}>
-                                                    Fiche #{f.id} — {f.importateurNom} ({f.statut})
-                                                </option>
-                                            ))}
-                                        </select>
-                                        <button
-                                            onClick={handleCreateConteneur}
-                                            disabled={creating || !selectedFiche}
-                                            className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2.5 rounded-xl hover:bg-blue-700 text-sm font-medium disabled:opacity-50"
-                                        >
-                                            <Plus size={16} />
-                                            {creating ? 'Ajout...' : 'Créer'}
-                                        </button>
+                            {user?.role === 'OPERATEUR' && fichesAPlacer.length > 0 && (
+                                <div className="bg-white rounded-2xl shadow-sm border border-orange-100 p-5 mb-5">
+                                    <h3 className="font-semibold text-gray-700 mb-3 text-sm flex items-center gap-2">
+                                        <Plus size={16} className="text-orange-500" />
+                                        Fiches approuvées à placer ({fichesAPlacer.length})
+                                    </h3>
+                                    <div className="space-y-2">
+                                        {fichesAPlacer.map(f => {
+                                            const isPlacing = placingId === f.id;
+                                            return (
+                                                <div key={f.id} onClick={() => !isPlacing && handlePlacerFiche(f.id)}
+                                                     className="flex items-center justify-between px-4 py-3 rounded-xl border border-gray-100 hover:border-orange-200 hover:bg-orange-50 cursor-pointer transition">
+                                                    <div>
+                                                        <p className="text-sm font-semibold text-gray-700">Fiche #{f.id}</p>
+                                                        <p className="text-xs text-gray-400">{f.importateurNom}</p>
+                                                    </div>
+                                                    {isPlacing ? (
+                                                        <Loader2 size={16} className="animate-spin text-orange-500" />
+                                                    ) : (
+                                                        <span className="text-xs bg-orange-600 text-white px-2.5 py-1 rounded-full font-semibold">Assigner une place →</span>
+                                                    )}
+                                                </div>
+                                            );
+                                        })}
                                     </div>
                                 </div>
                             )}
@@ -314,12 +302,15 @@ const ConteneurList = () => {
                                 </div>
                             ) : (
                                 <>
+                                    {/* Category breakdown — share of total placed, click to drill in */}
                                     <div className="grid grid-cols-2 gap-4 mb-5">
                                         {SECTION_ORDER.map(sectionKey => {
                                             const cfg = SECTION_CONFIG[sectionKey];
                                             const items = sectionGroups[sectionKey] || [];
                                             const Icon = cfg.icon;
                                             const isExpanded = expandedSection === sectionKey;
+                                            const pct = totalPlaced > 0 ? Math.round((items.length / totalPlaced) * 100) : 0;
+                                            const critiqueInSection = items.filter(c => getSlotStatus(c) === 'critique').length;
 
                                             return (
                                                 <div
@@ -329,30 +320,25 @@ const ConteneurList = () => {
                                                         isExpanded ? 'border-blue-300 shadow-md' : 'border-gray-100 hover:border-gray-200'
                                                     }`}
                                                 >
-                                                    <div className="flex items-center justify-between mb-3">
+                                                    <div className="flex items-center justify-between mb-2">
                                                         <div className="flex items-center gap-2">
                                                             <Icon size={18} className={cfg.iconColor} />
                                                             <span className="text-sm font-semibold text-gray-700">{cfg.label}</span>
                                                         </div>
-                                                        <span className="text-xs text-gray-400">{items.length}</span>
+                                                        <span className="text-xs text-gray-400">{items.length} conteneur{items.length !== 1 ? 's' : ''}</span>
                                                     </div>
-                                                    <div className="grid grid-cols-10 gap-1">
-                                                        {Array.from({ length: 10 }).map((_, i) => {
-                                                            const c = items[i];
-                                                            if (!c) return <div key={i} className="aspect-square rounded-sm bg-gray-100 border border-dashed border-gray-200" />;
-                                                            const status = getSlotStatus(c);
-                                                            return (
-                                                                <div
-                                                                    key={i}
-                                                                    title={`#${c.id} — Quai ${c.quai || '-'}`}
-                                                                    className={`aspect-square rounded-sm border ${SLOT_CLASS[status]}`}
-                                                                />
-                                                            );
-                                                        })}
+                                                    <div className="w-full bg-gray-100 rounded-full h-3 mb-1.5 overflow-hidden">
+                                                        <div
+                                                            className={`h-3 rounded-full transition-all ${critiqueInSection > 0 ? 'bg-red-500' : 'bg-blue-500'}`}
+                                                            style={{ width: `${pct}%` }}
+                                                        />
                                                     </div>
-                                                    {items.length > 10 && (
-                                                        <p className="text-[10px] text-gray-400 mt-1">+{items.length - 10} autres — cliquez pour tout voir</p>
-                                                    )}
+                                                    <div className="flex items-center justify-between text-xs text-gray-400">
+                                                        <span>{pct}% du total placé</span>
+                                                        {critiqueInSection > 0 && (
+                                                            <span className="text-red-500 font-medium">{critiqueInSection} critique{critiqueInSection > 1 ? 's' : ''}</span>
+                                                        )}
+                                                    </div>
                                                 </div>
                                             );
                                         })}
@@ -362,7 +348,6 @@ const ConteneurList = () => {
                                         <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-sm bg-red-500"></span>Critique</span>
                                         <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-sm bg-yellow-400"></span>Attention</span>
                                         <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-sm bg-green-500"></span>Normal</span>
-                                        <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-sm bg-gray-100 border border-dashed border-gray-300"></span>Libre</span>
                                     </div>
 
                                     {expandedSection && (
@@ -389,32 +374,31 @@ const ConteneurList = () => {
                                                     return acc;
                                                 }, {});
                                                 return (
-                                                    <div className="space-y-4">
+                                                    <div className="space-y-5">
                                                         {Object.entries(zonesInSection).map(([zone, zoneItems]) => (
                                                             <div key={zone}>
                                                                 <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">{zone}</p>
-                                                                <div className="grid grid-cols-8 sm:grid-cols-12 gap-2">
+                                                                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2">
                                                                     {zoneItems.map(c => {
                                                                         const status = getSlotStatus(c);
                                                                         return (
                                                                             <div
                                                                                 key={c.id}
                                                                                 onClick={() => navigate(`/conteneurs/${c.id}`)}
-                                                                                onMouseEnter={() => setHoveredId(c.id)}
-                                                                                onMouseLeave={() => setHoveredId(null)}
-                                                                                className="relative"
+                                                                                className={`rounded-xl border px-3 py-2.5 cursor-pointer hover:shadow-md transition ${
+                                                                                    status === 'critique'  ? 'bg-red-50 border-red-200' :
+                                                                                        status === 'attention' ? 'bg-yellow-50 border-yellow-200' :
+                                                                                            'bg-green-50 border-green-200'
+                                                                                }`}
                                                                             >
-                                                                                <div className={`aspect-square rounded-md border flex items-center justify-center text-white text-[10px] font-bold cursor-pointer transition ${SLOT_CLASS[status]} ${hoveredId === c.id ? 'scale-110 shadow-lg' : ''}`}>
-                                                                                    #{c.id}
-                                                                                </div>
-                                                                                {hoveredId === c.id && (
-                                                                                    <div className="absolute z-10 bottom-full left-1/2 -translate-x-1/2 mb-2 bg-gray-900 text-white text-xs rounded-lg px-3 py-2 whitespace-nowrap shadow-xl">
-                                                                                        <p className="font-semibold">Conteneur #{c.id}</p>
-                                                                                        <p className="text-gray-300">Rangée {c.rangee || '-'} · Position {c.position || '-'}</p>
-                                                                                        <p className="text-gray-300">Quai {c.quai || '-'}</p>
-                                                                                        <p className="text-gray-300">Dwell: {c.dwellTimeHours != null ? `${c.dwellTimeHours}h` : '-'}</p>
-                                                                                    </div>
-                                                                                )}
+                                                                                <p className="text-sm font-bold text-gray-800">#{c.id}</p>
+                                                                                <p className="text-xs text-gray-500 mt-0.5">Quai {c.quai || '-'} · {c.rangee || '-'} / {c.position || '-'}</p>
+                                                                                <p className={`text-xs font-medium mt-1 ${
+                                                                                    status === 'critique'  ? 'text-red-600' :
+                                                                                        status === 'attention' ? 'text-yellow-600' : 'text-green-600'
+                                                                                }`}>
+                                                                                    {c.dwellTimeHours != null ? `${c.dwellTimeHours}h` : '-'}
+                                                                                </p>
                                                                             </div>
                                                                         );
                                                                     })}

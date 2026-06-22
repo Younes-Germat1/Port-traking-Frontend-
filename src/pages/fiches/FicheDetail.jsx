@@ -442,7 +442,7 @@ export default function FicheDetail() {
         });
     };
 
-    const canUpload = user?.role === 'IMPORTATEUR' || user?.role === 'ADMIN';
+    const canUpload = user?.role === 'IMPORTATEUR';
     const statut    = STATUT_CONFIG[fiche?.statut] || {};
     const StatutIcon = statut.icon || Clock;
 
@@ -639,11 +639,11 @@ export default function FicheDetail() {
                                 </div>
                             )}
 
-                            {/* Tabs */}
+                            {/* Tabs — Documents hidden entirely for Opérateur */}
                             <div className="flex gap-1 bg-gray-100 rounded-xl p-1 mb-6">
                                 {[
                                     { key: 'details',    label: 'Détails',                         icon: FileText },
-                                    { key: 'documents',  label: `Documents (${documents.length})`, icon: Upload },
+                                    ...(user?.role !== 'OPERATEUR' ? [{ key: 'documents',  label: `Documents (${documents.length})`, icon: Upload }] : []),
                                     { key: 'historique', label: 'Historique',                      icon: History },
                                 ].map(({ key, label, icon: Icon }) => (
                                     <button key={key} onClick={() => setActiveTab(key)}
@@ -767,8 +767,8 @@ export default function FicheDetail() {
                                 </div>
                             )}
 
-                            {/* TAB : Documents */}
-                            {activeTab === 'documents' && (
+                            {/* TAB : Documents — never shown to Opérateur */}
+                            {activeTab === 'documents' && user?.role !== 'OPERATEUR' && (
                                 <div className="space-y-4">
                                     {canUpload ? (
                                         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5">

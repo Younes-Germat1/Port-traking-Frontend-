@@ -63,7 +63,6 @@ const getDwellBarColor = (hours, warning, critique) => {
     return 'bg-red-500';
 };
 
-// ── Admin Alert Panel — reused from FicheDetail, linked via conteneur.ficheId ──
 const AdminAlertPanel = ({ ficheId }) => {
     const [open, setOpen]             = useState(false);
     const [targetRole, setTargetRole] = useState('OPERATEUR');
@@ -73,10 +72,7 @@ const AdminAlertPanel = ({ ficheId }) => {
     const [error, setError]           = useState('');
 
     const handleSend = async () => {
-        if (!message.trim()) {
-            setError('Veuillez écrire un message.');
-            return;
-        }
+        if (!message.trim()) { setError('Veuillez écrire un message.'); return; }
         try {
             setSending(true);
             setError('');
@@ -93,10 +89,8 @@ const AdminAlertPanel = ({ ficheId }) => {
 
     return (
         <div className="mb-6 bg-white border border-gray-100 rounded-2xl overflow-hidden">
-            <button
-                onClick={() => setOpen(!open)}
-                className="w-full flex items-center justify-between px-5 py-4 hover:bg-gray-50 transition"
-            >
+            <button onClick={() => setOpen(!open)}
+                    className="w-full flex items-center justify-between px-5 py-4 hover:bg-gray-50 transition">
                 <div className="flex items-center gap-3">
                     <div className="p-2 bg-indigo-50 rounded-xl"><Megaphone size={18} className="text-indigo-600" /></div>
                     <span className="font-semibold text-gray-700 text-sm">Envoyer une alerte concernant ce conteneur</span>
@@ -118,11 +112,8 @@ const AdminAlertPanel = ({ ficheId }) => {
                     )}
                     <div>
                         <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1 block">Destinataire</label>
-                        <select
-                            value={targetRole}
-                            onChange={e => setTargetRole(e.target.value)}
-                            className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400 bg-white"
-                        >
+                        <select value={targetRole} onChange={e => setTargetRole(e.target.value)}
+                                className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400 bg-white">
                             {ALERT_TARGETS.map(t => (
                                 <option key={t.value} value={t.value}>{t.label}</option>
                             ))}
@@ -130,19 +121,13 @@ const AdminAlertPanel = ({ ficheId }) => {
                     </div>
                     <div>
                         <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1 block">Message</label>
-                        <textarea
-                            rows={2}
-                            placeholder="Ex: Ce conteneur dépasse le seuil critique, intervention requise."
-                            value={message}
-                            onChange={e => setMessage(e.target.value)}
-                            className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400 bg-white resize-none"
-                        />
+                        <textarea rows={2}
+                                  placeholder="Ex: Ce conteneur dépasse le seuil critique, intervention requise."
+                                  value={message} onChange={e => setMessage(e.target.value)}
+                                  className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400 bg-white resize-none" />
                     </div>
-                    <button
-                        onClick={handleSend}
-                        disabled={sending}
-                        className="flex items-center justify-center gap-2 bg-indigo-600 text-white px-4 py-2.5 rounded-xl text-sm font-semibold hover:bg-indigo-700 disabled:opacity-50 transition"
-                    >
+                    <button onClick={handleSend} disabled={sending}
+                            className="flex items-center justify-center gap-2 bg-indigo-600 text-white px-4 py-2.5 rounded-xl text-sm font-semibold hover:bg-indigo-700 disabled:opacity-50 transition">
                         {sending ? <Loader2 size={15} className="animate-spin" /> : <Send size={15} />}
                         {sending ? 'Envoi...' : "Envoyer l'alerte"}
                     </button>
@@ -167,7 +152,7 @@ const ConteneurDetail = () => {
     const [showQR, setShowQR]       = useState(false);
 
     const [manutentionForm, setManutentionForm] = useState({
-        type: 'CHARGEMENT', datePrevue: '', heurePrevue: '', responsable: '', notes: '',
+        type: 'CHARGEMENT', datePrevue: '', heurePrevue: '',
     });
     const [manutentionList, setManutentionList]       = useState([]);
     const [savingManutention, setSavingManutention]   = useState(false);
@@ -211,8 +196,7 @@ const ConteneurDetail = () => {
             setSuccess('Emplacement assigné avec succès !');
             setTimeout(() => setSuccess(''), 3000);
         } catch (err) {
-            const msg = err?.response?.data?.message || "Erreur lors de l'assignation.";
-            setError(msg);
+            setError(err?.response?.data?.message || "Erreur lors de l'assignation.");
         } finally {
             setSaving(false);
         }
@@ -231,11 +215,9 @@ const ConteneurDetail = () => {
                 type:        manutentionForm.type,
                 datePrevue:  manutentionForm.datePrevue,
                 heurePrevue: manutentionForm.heurePrevue,
-                responsable: manutentionForm.responsable,
-                notes:       manutentionForm.notes,
             });
             setManutentionList(prev => [...prev, newOp]);
-            setManutentionForm({ type: 'CHARGEMENT', datePrevue: '', heurePrevue: '', responsable: '', notes: '' });
+            setManutentionForm({ type: 'CHARGEMENT', datePrevue: '', heurePrevue: '' });
             setManutentionSuccess('Opération programmée avec succès !');
             setTimeout(() => setManutentionSuccess(''), 3000);
         } catch {
@@ -310,7 +292,6 @@ const ConteneurDetail = () => {
                             </div>
                         </div>
 
-                        {/* Classifications */}
                         {conteneur?.classifications?.length > 0 && (
                             <div className="flex gap-2 mt-4 pt-4 border-t border-gray-50 flex-wrap">
                                 <span className="text-xs text-gray-400 mt-1">Marchandises :</span>
@@ -320,16 +301,11 @@ const ConteneurDetail = () => {
                                             c === 'PERISSABLE' ? 'bg-orange-100 text-orange-700' :
                                                 c === 'FRAGILE'    ? 'bg-blue-100 text-blue-700' :
                                                     'bg-gray-100 text-gray-600'
-                                    }`}>
-                                        {c === 'DANGEREUSE' ? '☢️ Dangereuse' :
-                                            c === 'PERISSABLE' ? '🥩 Périssable' :
-                                                c === 'FRAGILE'    ? '⚠️ Fragile' : '📦 Standard'}
-                                    </span>
+                                    }`}>{c}</span>
                                 ))}
                             </div>
                         )}
 
-                        {/* Priority alert banner */}
                         {(priority === 'CRITIQUE' || priority === 'HAUTE') && dwellTime >= warningThresh && (
                             <div className={`mt-4 flex items-center gap-3 px-4 py-3 rounded-xl border ${
                                 priority === 'CRITIQUE'
@@ -346,7 +322,6 @@ const ConteneurDetail = () => {
                         )}
                     </div>
 
-                    {/* Admin Alert Panel — admin only */}
                     {user?.role === 'ADMIN' && (
                         <AdminAlertPanel ficheId={conteneur?.ficheId} />
                     )}
@@ -371,7 +346,6 @@ const ConteneurDetail = () => {
                                     </div>
                                 ))}
 
-                                {/* Dwell Time */}
                                 <div className="flex justify-between items-center py-3 mt-2">
                                     <div className="flex items-center gap-2 text-gray-500 text-sm">
                                         <Clock size={15} className="text-gray-400" /> Dwell Time
@@ -386,7 +360,6 @@ const ConteneurDetail = () => {
                                     </div>
                                 </div>
 
-                                {/* Progress bar */}
                                 {dwellTime !== null && (
                                     <div className="mt-1">
                                         <div className="flex justify-between text-xs text-gray-400 mb-1">
@@ -395,10 +368,8 @@ const ConteneurDetail = () => {
                                             <span>{critiqueThresh}h+</span>
                                         </div>
                                         <div className="w-full bg-gray-100 rounded-full h-2">
-                                            <div
-                                                className={`h-2 rounded-full transition-all ${getDwellBarColor(dwellTime, warningThresh, critiqueThresh)}`}
-                                                style={{ width: `${Math.min((dwellTime / critiqueThresh) * 100, 100)}%` }}
-                                            />
+                                            <div className={`h-2 rounded-full transition-all ${getDwellBarColor(dwellTime, warningThresh, critiqueThresh)}`}
+                                                 style={{ width: `${Math.min((dwellTime / critiqueThresh) * 100, 100)}%` }} />
                                         </div>
                                         <div className="flex justify-between mt-1">
                                             <p className="text-xs text-gray-400">
@@ -410,7 +381,6 @@ const ConteneurDetail = () => {
                                 )}
                             </div>
 
-                            {/* QR Code */}
                             <div className="mt-6 pt-5 border-t border-gray-100">
                                 <button onClick={() => setShowQR(!showQR)}
                                         className="w-full flex items-center justify-center gap-2 bg-gray-900 text-white py-3 rounded-xl hover:bg-gray-800 text-sm font-medium transition">
@@ -431,7 +401,6 @@ const ConteneurDetail = () => {
                             <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
                                 <h3 className="font-bold text-gray-800 mb-5">Assigner Emplacement</h3>
 
-                                {/* Suggested zone hint */}
                                 {conteneur?.suggestedZone && (
                                     <div className="bg-blue-50 border border-blue-100 rounded-xl px-4 py-3 mb-4 flex items-center gap-2 text-sm text-blue-700">
                                         <MapPin size={15} />
@@ -473,7 +442,7 @@ const ConteneurDetail = () => {
                     </div>
 
                     {/* Manutention Section */}
-                    {(user?.role === 'OPERATEUR' || user?.role === 'ADMIN') && (
+                    {(user?.role === 'OPERATEUR' || user?.role === 'ADMIN') && conteneur?.statut === 'ARRIVE' && (
                         <div className="mt-6 bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
                             <div className="flex items-center gap-3 mb-6">
                                 <div className="p-2 bg-purple-50 rounded-xl"><Truck size={20} className="text-purple-600" /></div>
@@ -486,7 +455,8 @@ const ConteneurDetail = () => {
                             <form onSubmit={handleManutention} className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
                                 <div>
                                     <label className="text-xs font-semibold text-gray-500 mb-1.5 block uppercase tracking-wider">Type d'opération</label>
-                                    <select value={manutentionForm.type} onChange={(e) => setManutentionForm({ ...manutentionForm, type: e.target.value })}
+                                    <select value={manutentionForm.type}
+                                            onChange={(e) => setManutentionForm({ ...manutentionForm, type: e.target.value })}
                                             className="w-full border border-gray-200 rounded-xl px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-purple-500 text-sm">
                                         {TYPE_MANUTENTION.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
                                     </select>
@@ -501,18 +471,6 @@ const ConteneurDetail = () => {
                                     <label className="text-xs font-semibold text-gray-500 mb-1.5 block uppercase tracking-wider">Heure prévue</label>
                                     <input type="time" value={manutentionForm.heurePrevue}
                                            onChange={(e) => setManutentionForm({ ...manutentionForm, heurePrevue: e.target.value })}
-                                           className="w-full border border-gray-200 rounded-xl px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-purple-500 text-sm" />
-                                </div>
-                                <div>
-                                    <label className="text-xs font-semibold text-gray-500 mb-1.5 block uppercase tracking-wider">Responsable</label>
-                                    <input type="text" placeholder="ex: Mohamed Alami" value={manutentionForm.responsable}
-                                           onChange={(e) => setManutentionForm({ ...manutentionForm, responsable: e.target.value })}
-                                           className="w-full border border-gray-200 rounded-xl px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-purple-500 text-sm" />
-                                </div>
-                                <div className="md:col-span-2">
-                                    <label className="text-xs font-semibold text-gray-500 mb-1.5 block uppercase tracking-wider">Notes</label>
-                                    <input type="text" placeholder="Instructions particulières..." value={manutentionForm.notes}
-                                           onChange={(e) => setManutentionForm({ ...manutentionForm, notes: e.target.value })}
                                            className="w-full border border-gray-200 rounded-xl px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-purple-500 text-sm" />
                                 </div>
                                 <div className="md:col-span-3">
@@ -535,8 +493,7 @@ const ConteneurDetail = () => {
                                 </div>
                             </form>
 
-                            {/* Operations List */}
-                            {manutentionList.length > 0 && (
+                            {manutentionList.length > 0 ? (
                                 <div>
                                     <h4 className="text-sm font-semibold text-gray-600 mb-3">Opérations programmées ({manutentionList.length})</h4>
                                     <div className="space-y-3">
@@ -548,11 +505,7 @@ const ConteneurDetail = () => {
                                                         <p className="text-sm font-semibold text-gray-700">
                                                             {TYPE_MANUTENTION.find(t => t.value === op.type)?.label || op.type}
                                                         </p>
-                                                        <p className="text-xs text-gray-400">
-                                                            📅 {op.datePrevue} à {op.heurePrevue}
-                                                            {op.responsable && ` — 👤 ${op.responsable}`}
-                                                        </p>
-                                                        {op.notes && <p className="text-xs text-gray-400 mt-0.5">📝 {op.notes}</p>}
+                                                        <p className="text-xs text-gray-400">📅 {op.datePrevue} à {op.heurePrevue}</p>
                                                     </div>
                                                 </div>
                                                 <button onClick={() => handleDeleteManutention(op.id)}
@@ -563,9 +516,7 @@ const ConteneurDetail = () => {
                                         ))}
                                     </div>
                                 </div>
-                            )}
-
-                            {manutentionList.length === 0 && (
+                            ) : (
                                 <div className="text-center py-8 text-gray-300">
                                     <CalendarClock size={40} className="mx-auto mb-2" />
                                     <p className="text-sm">Aucune opération programmée</p>

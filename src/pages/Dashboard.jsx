@@ -5,13 +5,13 @@ import { useAuth } from '../context/AuthContext';
 import { getAllFiches } from '../api/ficheAPI';
 import { getAllUsers } from '../api/userAPI';
 import { getMesTaches } from '../api/inspectionAPI';
-import { getConteneursByFiche, getDwellTime } from '../api/conteneurAPI';
+import { getConteneursByFiche, getDwellTime, createConteneur } from '../api/conteneurAPI';
 import { useNavigate } from 'react-router-dom';
 import {
     FileText, Package, Users, CheckCircle,
     Clock, XCircle, TrendingUp, ArrowRight,
     Bell, AlertTriangle, MapPin, Truck,
-    ClipboardList, ShieldCheck, Flame, Target
+    ClipboardList, ShieldCheck, Flame, Target, Loader2
 } from 'lucide-react';
 
 const StatCard = ({ title, value, icon: Icon, color, bg, subtitle, onClick }) => (
@@ -161,31 +161,24 @@ const WorkflowGraph = ({ fiches, navigate }) => {
             </div>
             <p className="text-xs text-gray-400 mb-5">Cliquez sur une étape pour voir les fiches correspondantes</p>
 
-            <div className="flex items-center overflow-x-auto pb-2">
-                {steps.map((s, i) => {
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+                {steps.map((s) => {
                     const isBottleneck = s.label === bottleneckLabel;
                     return (
-                        <div key={s.label} className="flex items-center shrink-0">
-                            <div
-                                onClick={() => navigate('/fiches', { state: { filtreStatut: s.statut } })}
-                                className={`relative rounded-xl border-2 px-5 py-4 cursor-pointer hover:shadow-lg transition-all duration-200 min-w-[130px] text-center ${s.color} ${isBottleneck ? 'ring-2 ring-orange-300' : ''}`}
-                            >
-                                {isBottleneck && (
-                                    <span className="absolute -top-2 -right-2 bg-orange-500 text-white rounded-full w-5 h-5 flex items-center justify-center">
-                                        <Flame size={11} />
-                                    </span>
-                                )}
-                                <div className={`w-2.5 h-2.5 rounded-full ${s.dot} mx-auto mb-2`} />
-                                <p className="text-sm font-bold">{s.label}</p>
-                                <p className="text-lg font-bold mt-1">{s.count}</p>
-                                <p className="text-xs mt-0.5 opacity-80">{s.sub}</p>
-                            </div>
-                            {i < steps.length - 1 && (
-                                <div className="flex items-center mx-1">
-                                    <div className="w-6 h-0.5 bg-gray-200" />
-                                    <ArrowRight size={14} className="text-gray-300 -ml-1" />
-                                </div>
+                        <div
+                            key={s.label}
+                            onClick={() => navigate('/fiches', { state: { filtreStatut: s.statut } })}
+                            className={`relative rounded-xl border-2 px-4 py-4 cursor-pointer hover:shadow-lg transition-all duration-200 text-center ${s.color} ${isBottleneck ? 'ring-2 ring-orange-300' : ''}`}
+                        >
+                            {isBottleneck && (
+                                <span className="absolute -top-2 -right-2 bg-orange-500 text-white rounded-full w-5 h-5 flex items-center justify-center">
+                                    <Flame size={11} />
+                                </span>
                             )}
+                            <div className={`w-2.5 h-2.5 rounded-full ${s.dot} mx-auto mb-2`} />
+                            <p className="text-sm font-bold">{s.label}</p>
+                            <p className="text-lg font-bold mt-1">{s.count}</p>
+                            <p className="text-xs mt-0.5 opacity-80">{s.sub}</p>
                         </div>
                     );
                 })}
@@ -209,9 +202,20 @@ const WorkflowGraph = ({ fiches, navigate }) => {
 
 // ── Goal Progress Graph — reusable across ADII / Opérateur / Inspecteur ──
 const GoalProgress = ({ label, todayCount, todayGoal, weekCount, weekGoal }) => {
-    const todayPct = todayGoal > 0 ? Math.min((todayCount / todayGoal) * 100, 100) : 0;
-    const weekPct  = weekGoal  > 0 ? Math.min((weekCount  / weekGoal)  * 100, 100) : 0;
-    const barColor = (pct) => pct >= 100 ? 'bg-green-500' : pct >= 50 ? 'bg-yellow-500' : 'bg-red-400';
+    const renderBlocks = (count, goal) => {
+        const blocks = Math.max(goal, count);
+        return (
+            <div className="flex gap-1 flex-wrap">
+                {Array.from({ length: blocks }).map((_, i) => (
+                    <div key={i} className={`h-3 flex-1 min-w-[6px] rounded-sm ${
+                        i < count
+                            ? (count >= goal ? 'bg-green-500' : 'bg-blue-500')
+                            : 'bg-gray-100'
+                    }`} />
+                ))}
+            </div>
+        );
+    };
 
     return (
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 mb-6">
@@ -227,20 +231,16 @@ const GoalProgress = ({ label, todayCount, todayGoal, weekCount, weekGoal }) => 
                 <div>
                     <div className="flex justify-between text-sm mb-1.5">
                         <span className="font-medium text-gray-600">Aujourd'hui</span>
-                        <span className="font-bold text-gray-800">{todayCount} / {todayGoal}</span>
+                        <span className={`font-bold ${todayCount >= todayGoal ? 'text-green-600' : 'text-gray-800'}`}>{todayCount} / {todayGoal}</span>
                     </div>
-                    <div className="w-full bg-gray-100 rounded-full h-3">
-                        <div className={`h-3 rounded-full transition-all ${barColor(todayPct)}`} style={{ width: `${todayPct}%` }} />
-                    </div>
+                    {renderBlocks(todayCount, todayGoal)}
                 </div>
                 <div>
                     <div className="flex justify-between text-sm mb-1.5">
                         <span className="font-medium text-gray-600">Cette semaine</span>
-                        <span className="font-bold text-gray-800">{weekCount} / {weekGoal}</span>
+                        <span className={`font-bold ${weekCount >= weekGoal ? 'text-green-600' : 'text-gray-800'}`}>{weekCount} / {weekGoal}</span>
                     </div>
-                    <div className="w-full bg-gray-100 rounded-full h-3">
-                        <div className={`h-3 rounded-full transition-all ${barColor(weekPct)}`} style={{ width: `${weekPct}%` }} />
-                    </div>
+                    {renderBlocks(weekCount, weekGoal)}
                 </div>
             </div>
         </div>
@@ -261,6 +261,7 @@ const Dashboard = () => {
     const [loading, setLoading]         = useState(true);
     const [operateurConteneurs, setOperateurConteneurs] = useState([]);
     const [operateurDwellTimes, setOperateurDwellTimes] = useState({});
+    const [placingId, setPlacingId]     = useState(null);
 
     useEffect(() => {
         const fetchData = async () => {
@@ -335,6 +336,24 @@ const Dashboard = () => {
     const countByStatut = (statut) => fiches.filter(f => f.statut === statut).length;
     const goToFiches = (statut = null) => navigate('/fiches', { state: { filtreStatut: statut } });
 
+    // ── Operator: clicking a fiche to place auto-creates the container and jumps to placement ──
+    const handlePlacerFiche = async (ficheId) => {
+        setPlacingId(ficheId);
+        try {
+            const existing = operateurConteneurs.find(c => c.ficheId === ficheId);
+            if (existing) {
+                navigate(`/conteneurs/${existing.id}`);
+                return;
+            }
+            const newConteneur = await createConteneur(ficheId);
+            navigate(`/conteneurs/${newConteneur.id}`);
+        } catch {
+            alert('Erreur lors de la création du conteneur.');
+        } finally {
+            setPlacingId(null);
+        }
+    };
+
     const fichesEnAttentePlacement = fiches.filter(f => f.statut === 'APPROUVEE');
     const fichesAValider = fiches
         .filter(f => f.statut === 'EN_ATTENTE')
@@ -361,15 +380,12 @@ const Dashboard = () => {
     };
 
     // ── Goal-tracking counts per role ──
-    // ADII: decisions (approved/rejected) recently made
     const adiiDecidedToday = fiches.filter(f => (f.statut === 'APPROUVEE' || f.statut === 'REJETEE') && isToday(f.updatedAt)).length;
     const adiiDecidedWeek  = fiches.filter(f => (f.statut === 'APPROUVEE' || f.statut === 'REJETEE') && isThisWeek(f.updatedAt)).length;
 
-    // Opérateur: fiches that have moved past placement recently (proxy for "placed today/week")
     const operateurPlacedToday = fiches.filter(f => ['PLACEE', 'DEDOUANEE', 'LIBEREE'].includes(f.statut) && isToday(f.updatedAt)).length;
     const operateurPlacedWeek  = fiches.filter(f => ['PLACEE', 'DEDOUANEE', 'LIBEREE'].includes(f.statut) && isThisWeek(f.updatedAt)).length;
 
-    // Inspecteur: completed inspections (proxy using inspection.date, since no completion timestamp exists yet)
     const inspectionsDoneToday = inspections.filter(i => i.resultat && isToday(i.date)).length;
     const inspectionsDoneWeek  = inspections.filter(i => i.resultat && isThisWeek(i.date)).length;
 
@@ -564,10 +580,9 @@ const Dashboard = () => {
             case 'OPERATEUR':
                 return (
                     <>
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-5 mb-6">
-                            <StatCard title="Fiches à placer"  value={fichesEnAttentePlacement.length} icon={MapPin}        color="text-orange-600" bg="bg-orange-50" onClick={() => goToFiches('APPROUVEE')} subtitle="Nouvelles fiches approuvées" />
-                            <StatCard title="En cours"         value={conteneurStatutCount.EN_INSPECTION + conteneurStatutCount.STOCKE} icon={Package} color="text-blue-600" bg="bg-blue-50" subtitle="Stockés ou en inspection" />
-                            <StatCard title="⚠️ Délai dépassé" value={conteneursToDo.length}            icon={AlertTriangle} color="text-red-600"    bg="bg-red-50"    subtitle="Conteneurs en retard, tous statuts" />
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-5 mb-6">
+                            <StatCard title="Fiches à placer"  value={fichesEnAttentePlacement.length} icon={MapPin}  color="text-orange-600" bg="bg-orange-50" onClick={() => goToFiches('APPROUVEE')} subtitle="Nouvelles fiches approuvées" />
+                            <StatCard title="En cours"         value={conteneurStatutCount.EN_INSPECTION + conteneurStatutCount.STOCKE} icon={Package} color="text-blue-600" bg="bg-blue-50" subtitle="Stockés ou en inspection" onClick={() => navigate('/conteneurs')} />
                         </div>
 
                         <GoalProgress
@@ -599,10 +614,10 @@ const Dashboard = () => {
                                         <div className="p-2 bg-orange-50 rounded-xl"><Truck size={20} className="text-orange-500" /></div>
                                         <div>
                                             <h3 className="font-bold text-gray-800">Nouvelles fiches à placer</h3>
-                                            <p className="text-xs text-gray-400">{fichesEnAttentePlacement.length} fiche(s) approuvée(s) — aucun emplacement assigné</p>
+                                            <p className="text-xs text-gray-400">{fichesEnAttentePlacement.length} fiche(s) approuvée(s) — cliquez pour assigner une place</p>
                                         </div>
                                     </div>
-                                    <button onClick={() => goToFiches('APPROUVEE')} className="text-orange-600 text-sm hover:underline flex items-center gap-1">Voir tout <ArrowRight size={14} /></button>
+                                    <button onClick={() => navigate('/conteneurs')} className="text-orange-600 text-sm hover:underline flex items-center gap-1">Voir tout <ArrowRight size={14} /></button>
                                 </div>
                                 <div className="space-y-2">
                                     {fichesEnAttentePlacement
@@ -610,8 +625,9 @@ const Dashboard = () => {
                                         .slice(0, 5)
                                         .map(f => {
                                             const priority = getFichePriority(f);
+                                            const isPlacing = placingId === f.id;
                                             return (
-                                                <div key={f.id} onClick={() => navigate(`/fiches/${f.id}`)}
+                                                <div key={f.id} onClick={() => !isPlacing && handlePlacerFiche(f.id)}
                                                      className="flex items-center justify-between px-4 py-3 rounded-xl border border-gray-100 hover:border-orange-200 hover:bg-orange-50 cursor-pointer transition">
                                                     <div className="flex items-center gap-3">
                                                         <div className="w-8 h-8 rounded-lg bg-orange-50 flex items-center justify-center">
@@ -626,53 +642,15 @@ const Dashboard = () => {
                                                         {priority !== 'NORMALE' && (
                                                             <span className={`text-xs px-2 py-0.5 rounded-full font-semibold ${PRIORITY_BADGE[priority]}`}>{priority}</span>
                                                         )}
-                                                        <span className="text-xs bg-green-100 text-green-700 px-2.5 py-1 rounded-full font-semibold">APPROUVÉE</span>
+                                                        {isPlacing ? (
+                                                            <Loader2 size={16} className="animate-spin text-orange-500" />
+                                                        ) : (
+                                                            <span className="text-xs bg-orange-600 text-white px-2.5 py-1 rounded-full font-semibold">Assigner une place →</span>
+                                                        )}
                                                     </div>
                                                 </div>
                                             );
                                         })}
-                                </div>
-                            </div>
-                        )}
-
-                        {conteneursToDo.length > 0 && (
-                            <div className="bg-white rounded-2xl shadow-sm border border-red-100 p-6">
-                                <div className="flex items-center gap-3 mb-4">
-                                    <div className="p-2 bg-red-50 rounded-xl"><AlertTriangle size={20} className="text-red-500" /></div>
-                                    <div>
-                                        <h3 className="font-bold text-gray-800">Conteneurs en retard — délai dépassé</h3>
-                                        <p className="text-xs text-gray-400">{conteneursToDo.length} conteneur(s) — tous statuts confondus, triés par priorité</p>
-                                    </div>
-                                </div>
-                                <div className="space-y-2">
-                                    {conteneursToDo.slice(0, 6).map(c => {
-                                        const hours = operateurDwellTimes[c.id];
-                                        const warn  = c.warningThreshold  || 72;
-                                        const crit  = c.critiqueThreshold || 120;
-                                        return (
-                                            <div key={c.id} onClick={() => navigate(`/conteneurs/${c.id}`)}
-                                                 className="flex items-center justify-between bg-gray-50 border border-gray-100 rounded-xl px-4 py-3 cursor-pointer hover:border-red-200 hover:bg-red-50 transition">
-                                                <div className="flex items-center gap-3">
-                                                    <div className="w-8 h-8 bg-red-50 rounded-lg flex items-center justify-center">
-                                                        <Package size={15} className="text-red-500" />
-                                                    </div>
-                                                    <div>
-                                                        <div className="flex items-center gap-2">
-                                                            <p className="text-sm font-semibold text-gray-700">Conteneur #{c.id}</p>
-                                                            {c.priority && c.priority !== 'NORMALE' && (
-                                                                <span className={`text-xs px-2 py-0.5 rounded-full font-semibold ${PRIORITY_BADGE[c.priority]}`}>{c.priority}</span>
-                                                            )}
-                                                        </div>
-                                                        <p className="text-xs text-gray-400">{[c.zone, c.rangee, c.position].filter(Boolean).join(' — ') || 'Emplacement non défini'}</p>
-                                                    </div>
-                                                </div>
-                                                <div className="text-right">
-                                                    <p className={`text-base font-bold ${getDwellColor(hours, warn, crit)}`}>{formatDwellTime(hours)}</p>
-                                                    <p className="text-xs text-red-400">{hours >= crit ? '🔴 Critique' : '⚠️ Long'}</p>
-                                                </div>
-                                            </div>
-                                        );
-                                    })}
                                 </div>
                             </div>
                         )}
