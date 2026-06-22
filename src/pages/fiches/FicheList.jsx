@@ -9,17 +9,17 @@ import { useAuth } from '../../context/AuthContext';
 import Navbar from '../../components/Navbar';
 import Sidebar from '../../components/Sidebar';
 
+// ── DEDOUANEE removed from all config ────────────────────────
 const STATUT_CONFIG = {
     EN_ATTENTE: { label: 'En Attente', color: 'bg-yellow-100 text-yellow-700',   icon: Clock },
     APPROUVEE:  { label: 'Approuvée',  color: 'bg-green-100 text-green-700',     icon: CheckCircle },
     REJETEE:    { label: 'Rejetée',    color: 'bg-red-100 text-red-700',         icon: XCircle },
     PLACEE:     { label: 'Placée',     color: 'bg-purple-100 text-purple-700',   icon: Package },
-    DEDOUANEE:  { label: 'Dédouanée', color: 'bg-blue-100 text-blue-700',       icon: CheckCircle },
     LIBEREE:    { label: 'Libérée',    color: 'bg-emerald-100 text-emerald-700', icon: CheckCircle },
 };
 
-const FILTRES_ALL       = ['TOUS', 'EN_ATTENTE', 'APPROUVEE', 'REJETEE', 'PLACEE', 'DEDOUANEE', 'LIBEREE'];
-const FILTRES_OPERATEUR = ['TOUS', 'APPROUVEE', 'PLACEE', 'DEDOUANEE'];
+const FILTRES_ALL       = ['TOUS', 'EN_ATTENTE', 'APPROUVEE', 'REJETEE', 'PLACEE', 'LIBEREE'];
+const FILTRES_OPERATEUR = ['TOUS', 'APPROUVEE', 'PLACEE'];
 
 export default function FicheList() {
     const navigate  = useNavigate();
@@ -33,8 +33,8 @@ export default function FicheList() {
     const [search, setSearch]   = useState('');
 
     const isOperateur = user?.role === 'OPERATEUR';
-    const isAdmin      = user?.role === 'ADMIN';
-    const FILTRES       = isOperateur ? FILTRES_OPERATEUR : FILTRES_ALL;
+    const isAdmin     = user?.role === 'ADMIN';
+    const FILTRES     = isOperateur ? FILTRES_OPERATEUR : FILTRES_ALL;
 
     useEffect(() => {
         if (user) fetchFiches();
@@ -48,20 +48,15 @@ export default function FicheList() {
             if (user?.role === 'IMPORTATEUR') {
                 data = await getMesFiches(user.id);
             } else {
-                // ADMIN, ADII, OPERATEUR all get full list — filtering happens client-side
                 data = await getAllFiches();
             }
             let all = Array.isArray(data) ? data : [];
 
-            // Operator only sees APPROUVEE, PLACEE, DEDOUANEE
             if (isOperateur) {
                 all = all.filter(f =>
-                    f.statut === 'APPROUVEE' ||
-                    f.statut === 'PLACEE'    ||
-                    f.statut === 'DEDOUANEE'
+                    f.statut === 'APPROUVEE' || f.statut === 'PLACEE'
                 );
             }
-
             setFiches(all);
         } catch {
             setError('Impossible de charger les fiches.');
@@ -87,9 +82,10 @@ export default function FicheList() {
         });
     };
 
+    // DEDOUANEE removed from stats
     const statsToShow = isOperateur
-        ? ['APPROUVEE', 'PLACEE', 'DEDOUANEE']
-        : ['EN_ATTENTE', 'APPROUVEE', 'REJETEE', 'PLACEE', 'DEDOUANEE', 'LIBEREE'];
+        ? ['APPROUVEE', 'PLACEE']
+        : ['EN_ATTENTE', 'APPROUVEE', 'REJETEE', 'PLACEE', 'LIBEREE'];
 
     return (
         <div className="flex bg-gray-50 min-h-screen">
@@ -98,7 +94,6 @@ export default function FicheList() {
                 <Navbar title="Fiches Suiveuses" />
                 <div className="p-6">
 
-                    {/* Header */}
                     <div className="flex items-center justify-between mb-6">
                         <div>
                             <h1 className="text-2xl font-bold text-gray-800">Fiches Suiveuses</h1>
@@ -114,24 +109,22 @@ export default function FicheList() {
                         )}
                     </div>
 
-                    {/* Admin info banner */}
                     {isAdmin && (
                         <div className="flex items-center gap-2 bg-gray-50 border border-gray-200 text-gray-600 text-sm px-4 py-3 rounded-xl mb-5">
                             <FileText size={16} />
-                            Vue administrateur — toutes les fiches du système, consultation uniquement.
+                            Vue administrateur — toutes les fiches du système.
                         </div>
                     )}
 
-                    {/* Operator info banner */}
                     {isOperateur && (
                         <div className="flex items-center gap-2 bg-blue-50 border border-blue-200 text-blue-700 text-sm px-4 py-3 rounded-xl mb-5">
                             <Package size={16} />
-                            Affichage limité aux fiches nécessitant votre intervention (Approuvées, Placées, Dédouanées).
+                            Fiches nécessitant votre intervention (Approuvées, Placées).
                         </div>
                     )}
 
-                    {/* Stats */}
-                    <div className={`grid gap-3 mb-6 ${isOperateur ? 'grid-cols-3' : 'grid-cols-3 sm:grid-cols-6'}`}>
+                    {/* Stats — DEDOUANEE removed */}
+                    <div className={`grid gap-3 mb-6 ${isOperateur ? 'grid-cols-2' : 'grid-cols-5'}`}>
                         {statsToShow.map((s) => {
                             const cfg = STATUT_CONFIG[s];
                             return (
@@ -151,7 +144,6 @@ export default function FicheList() {
                         })}
                     </div>
 
-                    {/* Search + filter */}
                     <div className="flex gap-3 mb-4">
                         <div className="flex-1 relative">
                             <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
@@ -176,29 +168,25 @@ export default function FicheList() {
                         </select>
                     </div>
 
-                    {/* Alerts — only for non-operator, non-admin roles */}
                     {!isOperateur && !isAdmin && fiches.some(f => f.statut === 'REJETEE') && (
                         <div className="flex items-center gap-2 bg-red-50 border border-red-200 text-red-600 text-sm px-4 py-3 rounded-xl mb-4">
                             <XCircle size={16} />
-                            Vous avez {countByStatut('REJETEE')} fiche(s) rejetée(s). Cliquez dessus pour voir le motif.
+                            Vous avez {countByStatut('REJETEE')} fiche(s) rejetée(s). Cliquez dessus pour re-soumettre.
                         </div>
                     )}
                     {!isOperateur && !isAdmin && fiches.some(f => f.statut === 'LIBEREE') && (
                         <div className="flex items-center gap-2 bg-emerald-50 border border-emerald-200 text-emerald-600 text-sm px-4 py-3 rounded-xl mb-4">
                             <CheckCircle size={16} />
-                            🎉 Vous avez {countByStatut('LIBEREE')} fiche(s) libérée(s) — marchandise prête pour enlèvement !
+                            🎉 {countByStatut('LIBEREE')} fiche(s) libérée(s) — marchandise prête pour enlèvement !
                         </div>
                     )}
-
-                    {/* Operator alert — fiches waiting for placement */}
                     {isOperateur && countByStatut('APPROUVEE') > 0 && (
                         <div className="flex items-center gap-2 bg-orange-50 border border-orange-200 text-orange-700 text-sm px-4 py-3 rounded-xl mb-4">
                             <Package size={16} />
-                            {countByStatut('APPROUVEE')} fiche(s) approuvée(s) en attente de placement — assignez un emplacement.
+                            {countByStatut('APPROUVEE')} fiche(s) approuvée(s) en attente de placement.
                         </div>
                     )}
 
-                    {/* Table */}
                     <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
                         {loading ? (
                             <div className="flex justify-center py-16">

@@ -43,3 +43,9 @@ export const createManutention = async (conteneurId, data) => {
 export const deleteManutention = async (id) => {
     await API.delete(`/api/manutentions/${id}`);
 };
+
+// Mark conteneur as PARTI (importateur confirms pickup)
+export const marquerParti = async (id) => {
+    const response = await API.put(`/api/conteneurs/${id}/emplacement`, { statut: 'PARTI' });
+    return response.data;
+};
